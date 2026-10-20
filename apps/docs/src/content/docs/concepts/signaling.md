@@ -32,8 +32,8 @@ Built-in adapters:
 | Adapter | Package | Use |
 |---|---|---|
 | `nostrSignaling({ relays })` | `@beamhop/signaling-nostr` | Default. Public relays or your own relay's realm |
-| `unionSignaling([a, b])` | `@beamhop/p2p` | Fans out to several adapters for redundancy; de-duplicates |
-| `memorySignaling()` | `@beamhop/p2p/memory` | Tests and the simulator |
+| `unionSignaling(a, b, ...)` | `@beamhop/p2p` | Fans out to several adapters for redundancy; de-duplicates |
+| `memorySignaling(createSignalingHub())` | `@beamhop/p2p` | Tests and the simulator |
 
 ## What goes over the relays
 

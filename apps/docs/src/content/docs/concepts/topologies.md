@@ -41,7 +41,8 @@ re-broadcasting them (anti-cheat in games, permission checks in documents).
 
 ```ts
 room.host                 // current host pubkey
-room.isHost               // boolean
+room.host === room.self.pubkey   // am I the host?
+room.peers.find((p) => p.isHost) // the host as a Peer (when it is not me)
 room.onHostChange((pubkey) => { /* … */ })
 ```
 

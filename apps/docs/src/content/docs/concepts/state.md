@@ -14,13 +14,13 @@ playlist. Beamhop ships two replicated structures that cover most of it without 
 ## Maps: last writer wins
 
 ```ts
-const settings = room.state.map<{ theme: string; volume: number }>('settings')
+const settings = room.state.map<string>('settings')
 
 settings.set('theme', 'dark')
 settings.get('theme')               // 'dark'
 settings.delete('volume')
-settings.entries()                  // current snapshot
-settings.onChange((key, value, peer) => render(key, value))
+settings.toObject()                 // current snapshot ({ theme: 'dark' }); also entries(), keys(), size
+settings.subscribe(({ key, value, deleted, remote }) => render(key, value))
 ```
 
 Each write is stamped with a **hybrid logical clock** (HLC): wall-clock milliseconds plus a logical
@@ -36,33 +36,34 @@ voter.
 ```ts
 const moves = room.state.log<{ from: string; to: string }>('moves')
 
-moves.append({ from: 'e2', to: 'e4' })
-moves.entries()                     // ordered by (HLC, author)
-moves.onAppend((entry, peer) => apply(entry))
+moves.append({ from: 'e2', to: 'e4' })   // returns the LogItem { author, seq, at, value }
+moves.entries()                          // LogItem[] ordered by HLC (values() for just the values)
+moves.subscribe((item, remote) => apply(item.value))
 ```
 
-Every author has its own sequence numbers; peers detect gaps and ask for the missing entries. The
-merged order is deterministic on all peers. Use logs for event histories, chat backlogs and game
-moves.
+Every author has its own sequence numbers and the merged order is deterministic on all peers. Use
+logs for event histories, chat backlogs and game moves.
 
 ## Late joiners
 
-A peer that joins an existing room requests a **snapshot**: from the host in a
-[star room](../topologies/), otherwise from the first peer that answers (or from a
-[Bun server peer](../../guides/bun-server-peer/) if one is in the room). It then replays updates
-that arrived while the snapshot was in flight. `room.state.ready` resolves when the replica is
-caught up.
+When a session first comes up, each side asks the other for a **snapshot** (in a
+[star room](../topologies/) that is the host and the client), so a late joiner, or a peer
+rejoining after a long partition, catches up. Ops and snapshots merge commutatively and
+idempotently, so updates that arrive while the snapshot is in flight are not lost. Call
+`room.state.sync()` to ask again, and compare `room.state.digest()` across peers to check that
+they converged.
 
 ```ts
-await room.state.ready
-renderBoard(settings.entries())
+room.onPeerJoin(() => renderBoard(settings.toObject()))
+settings.subscribe(() => renderBoard(settings.toObject()))
 ```
 
 ## In a star room
 
-With `topology: { star: {} }` the host is authoritative: writes are sent to the host, which can
-validate them (`room.state.map('board', { validate: (key, value, peer) => boolean })`) before
-re-broadcasting. Clients apply their own writes optimistically and roll back if the host rejects.
+With `topology: { star: {} }` every client holds one session to the host, which forwards writes
+to the other clients and answers snapshot requests, so the host's replica is the reference copy.
+Writes still merge by HLC; there is no host-side validation hook in v1 (use a
+[request](../channels/) to the host for writes that need checking).
 
 ## Limits
 

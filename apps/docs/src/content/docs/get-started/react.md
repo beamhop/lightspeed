@@ -8,19 +8,20 @@ sidebar:
 :::caution[0.x, subject to change]
 :::
 
-`@beamhop/react` wraps a room in four hooks: `useRoom`, `usePeers`, `useAction` and
-`useSharedState`. The room joins when the component mounts and leaves when it unmounts.
+`@beamhop/react` puts a room in context with `<RoomProvider>` and reads it with hooks: `useRoom`,
+`usePeers`, `useAction`, `useRequest`, `useSharedState`, `useSharedLog` and `useTelemetry`. The
+provider creates the room when it mounts and leaves it when it unmounts.
 
 ```sh
 bun add @beamhop/p2p @beamhop/signaling-nostr @beamhop/react zod
 ```
 
-```tsx title="Chat.tsx"
-import { anonymous } from '@beamhop/p2p'
+```tsx title="App.tsx"
+import { anonymous, type RoomOptions } from '@beamhop/p2p'
 import { webrtcTransport } from '@beamhop/p2p/webrtc'
-import { useAction, usePeers, useRoom } from '@beamhop/react'
+import { RoomProvider, useAction, usePeers, useRoom, useRoomError } from '@beamhop/react'
 import { nostrSignaling } from '@beamhop/signaling-nostr'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { protocol } from './protocol'
 
 const signaling = nostrSignaling({
@@ -28,28 +29,41 @@ const signaling = nostrSignaling({
 })
 const transports = [webrtcTransport({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] })]
 
-export function Chat({ name, roomId }: { name: string; roomId: string }) {
-  const { room, status, error } = useRoom({
-    appId: 'my-first-app',
-    roomId,
-    identity: anonymous({ persist: true }),
-    signaling,
-    transports,
-    protocol,
-    meta: { name },
-  })
-  const peers = usePeers(room)
+export function App({ name, roomId }: { name: string; roomId: string }) {
+  const options = useMemo<RoomOptions<typeof protocol>>(
+    () => ({
+      appId: 'my-first-app',
+      roomId,
+      identity: anonymous({ persist: true }),
+      signaling,
+      transports,
+      protocol,
+      meta: { name },
+    }),
+    [roomId, name],
+  )
+  return (
+    <RoomProvider options={options}>
+      <Chat />
+    </RoomProvider>
+  )
+}
+
+function Chat() {
+  const room = useRoom<typeof protocol>()
+  const error = useRoomError()
+  const peers = usePeers()
   const [log, setLog] = useState<string[]>([])
-  const sendChat = useAction(room, 'chat', ({ text }, peer) =>
-    setLog((l) => [...l, `${peer.meta.name}: ${text}`]),
+  const sendChat = useAction<typeof protocol, 'chat'>('chat', ({ text }, from) =>
+    setLog((l) => [...l, `${room?.peer(from)?.meta.name ?? from.slice(0, 8)}: ${text}`]),
   )
 
   if (error) return <p>Could not join: {error.message}</p>
-  if (status !== 'joined') return <p>Joining…</p>
+  if (!room) return <p>Joining…</p>
 
   return (
     <>
-      <p>{peers.length} peer(s): {peers.map((p) => p.meta.name).join(', ')}</p>
+      <p>{peers.length} peer(s): {peers.map((p) => String(p.meta.name)).join(', ')}</p>
       <ul>{log.map((line, i) => <li key={i}>{line}</li>)}</ul>
       <form
         onSubmit={(e) => {
@@ -68,14 +82,14 @@ export function Chat({ name, roomId }: { name: string; roomId: string }) {
 
 ## Rules of thumb
 
-- Create signaling adapters and transports **outside** the component (or memoize them). `useRoom`
-  re-joins when its options change identity.
-- `useAction(room, name, handler)` subscribes the handler and returns a stable `send` function.
-  Without a handler it only returns `send`.
-- `useSharedState(room, mapName, key, initial)` reads and writes one key of a
+- Create signaling adapters and transports **outside** the component (or memoize them). The
+  provider re-creates the room when `appId`, `roomId` or `password` change; pass a stable
+  `options` object otherwise.
+- `useAction(name, onMessage?)` subscribes the handler and returns a stable `send(data, { to? })`.
+  The handler gets the payload and the sender's pubkey; it always sees the latest closure.
+- `useSharedState(name, key)` reads and writes one key of a
   [last-writer-wins map](../../concepts/state/) and re-renders on remote changes.
-- Every hook accepts `room` as `null` while the room is joining, so you can call them
-  unconditionally.
+- `useRoom()` is `null` while the room is being created, and sends reject until it is ready, so
+  you can call the hooks unconditionally. Hooks throw outside a `<RoomProvider>`.
 
-See the [React guide](../../guides/react/) for shared state, requests and Suspense-free loading
-patterns.
+See the [React guide](../../guides/react/) for shared state, requests and telemetry.

@@ -1,6 +1,6 @@
 ---
 title: React hooks
-description: useRoom, usePeers, useAction and useSharedState in depth.
+description: RoomProvider, useRoom, usePeers, useAction, useRequest, useSharedState, useSharedLog and useTelemetry in depth.
 sidebar:
   order: 1
 ---
@@ -9,76 +9,91 @@ sidebar:
 :::
 
 `@beamhop/react` is a thin layer over `@beamhop/p2p`. Everything it does you could do with
-`useEffect`; the hooks just get the subscriptions and cleanup right.
+`useEffect`; the hooks just get the subscriptions and cleanup right. `react` 18 or newer is a peer
+dependency.
 
-## useRoom
+## RoomProvider
 
 ```tsx
-const { room, status, error } = useRoom(options, { enabled: true })
+<RoomProvider options={options}>{children}</RoomProvider>   // creates and leaves the room
+<RoomProvider room={room}>{children}</RoomProvider>         // uses an existing room, never leaves it
 ```
 
-- Joins on mount, leaves on unmount and when `options.roomId`, `options.appId` or
-  `options.password` change.
-- `status` is `'idle' | 'joining' | 'joined' | 'error' | 'left'`; `room` is `null` until joined.
+- With `options`, the provider calls `createRoom(options)` on mount, leaves the room on unmount,
+  and re-creates it when `options.appId`, `options.roomId` or `options.password` change.
 - Keep `signaling`, `transports` and `protocol` referentially stable (module scope or `useMemo`).
+- Every hook below reads the room from the nearest provider and throws outside one.
 
-To share one room across a tree, put it in context:
+## useRoom and useRoomError
 
 ```tsx
-const RoomContext = createContext<Room<typeof protocol> | null>(null)
-
-function App() {
-  const { room } = useRoom(options)
-  return <RoomContext.Provider value={room}><Game /></RoomContext.Provider>
-}
+const room = useRoom<typeof protocol>()   // Room | null while it is being created
+const error = useRoomError()              // the createRoom error, if any
+const self = room?.self.pubkey
 ```
 
 ## usePeers
 
 ```tsx
-const peers = usePeers(room)                 // Peer[] excluding self, re-renders on join/leave/away/back
-const self = room?.self
+const peers = usePeers()   // readonly Peer[] excluding self
 ```
 
-Each peer has `pubkey`, verified `attestations`, self-declared `meta`, `state`
-(`'connected' | 'away'`) and `path`.
+Re-renders on join, leave, away/back, path, RTT and host changes. Each peer has `pubkey`, verified
+`attestations`, self-declared `meta`, `state` (`'connected' | 'away'`), `path`, `rttMs` and
+`isHost`.
 
 ## useAction
 
 ```tsx
-const send = useAction(room, 'chat', (msg, peer) => addMessage(peer, msg))
-send({ text: 'hi' })               // broadcast
-send({ text: 'psst' }, peer.pubkey)
+const send = useAction<typeof protocol, 'chat'>('chat', (msg, from) => addMessage(from, msg))
+await send({ text: 'hi' })                        // broadcast; resolves when acknowledged
+await send({ text: 'psst' }, { to: peer.pubkey }) // one peer (or an array of pubkeys)
 ```
 
 The handler always sees the latest closure (it is stored in a ref), so you do not need to memoize
-it. Omit the handler to get only `send`.
+it. Omit the handler to get only `send`. `send` rejects while the room is not ready.
 
 ## useRequest
 
 ```tsx
-const roll = useRequest(room, 'roll')
-const { value } = await roll({ sides: 20 }, hostPubkey)
+// Answer requests from other peers (optional) and get a stable `call`.
+const roll = useRequest<typeof protocol, 'roll'>('roll', ({ sides }) => ({
+  value: 1 + Math.floor(Math.random() * sides),
+}))
+const { value } = await roll(hostPubkey, { sides: 20 }, { timeoutMs: 5000 })
 ```
 
 ## useSharedState
 
 ```tsx
-const [theme, setTheme] = useSharedState(room, 'settings', 'theme', 'dark')
+const [theme, setTheme] = useSharedState<string>('settings', 'theme')   // one key: [value, set]
+const [settings, map] = useSharedState<string>('settings')              // whole map: [object, SharedMap]
 ```
 
-Reads and writes a single key of a [last-writer-wins map](../../concepts/state/). Remote writes
-re-render only the components that read the changed key.
+Reads and writes a [last-writer-wins map](../../concepts/state/). With a key, only changes to that
+key re-render the component. The value is `undefined` until someone sets it.
+
+## useSharedLog
+
+```tsx
+const [items, append] = useSharedLog<string>('events')
+append('started')
+items.map((i) => `${i.author.slice(0, 8)} #${i.seq}: ${i.value}`)
+```
+
+Items are in HLC order, identical on every peer.
 
 ## useTelemetry
 
 ```tsx
-const events = useTelemetry(room, { types: ['path', 'rtt'], limit: 100 })
+const events = useTelemetry({ filter: (e) => e.type === 'path' || e.type === 'rtt', limit: 100 })
 ```
 
-Handy for building your own connection indicator.
+Recent `TelemetryEvent`s from the room's bus, newest last, batched per microtask. `replay`
+(default `true`) starts with the bus's recent history. Handy for building your own connection
+indicator.
 
 ## Server rendering
 
-Hooks are no-ops on the server (`room` stays `null`), so components render their joining state in
-SSR and hydrate normally.
+On the server the provider never creates a room (`useEffect` does not run), so `useRoom()` is
+`null` and components render their joining state; they hydrate normally.

@@ -65,7 +65,7 @@ MIT
  | 
 React bindings | 
 @beamhop/react | 
-useRoom, usePeers, useAction, useSharedState | 
+RoomProvider, useRoom, usePeers, useAction, useRequest, useSharedState, useSharedLog, useTelemetry | 
 MIT
  | 
 Relay server | 
