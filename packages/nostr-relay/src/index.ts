@@ -1,7 +1,3 @@
-export { createNostrRelay, SUPPORTED_NIPS } from './relay'
-export { allowAll, createPolicyStore, RateLimiter, staticPolicy } from './policy'
-export { Negentropy, NegentropyStorageVector } from './negentropy'
-export { matchFilter, matchFilters, parseFilter } from './filter'
 export {
   computeId,
   isAddressable,
@@ -11,6 +7,10 @@ export {
   validateShape,
   verifyEvent,
 } from './event'
+export { matchFilter, matchFilters, parseFilter } from './filter'
+export { Negentropy, NegentropyStorageVector } from './negentropy'
+export { allowAll, createPolicyStore, RateLimiter, staticPolicy } from './policy'
+export { createNostrRelay, SUPPORTED_NIPS } from './relay'
 export type {
   Filter,
   Moderation,

@@ -106,12 +106,18 @@ export function createNostrRelay(opts: NostrRelayOptions): NostrRelay {
       : undefined
 
   function ipBlocked(realm: string | null, ip: string) {
-    return moderation.snapshot(realm).blockedIps.has(ip) || moderation.snapshot(null).blockedIps.has(ip)
+    return (
+      moderation.snapshot(realm).blockedIps.has(ip) || moderation.snapshot(null).blockedIps.has(ip)
+    )
   }
 
   // ---------------------------------------------------------------- ingest pipeline
 
-  async function ingest(raw: unknown, realm: string | null, ctx: IngestContext): Promise<PublishResult> {
+  async function ingest(
+    raw: unknown,
+    realm: string | null,
+    ctx: IngestContext,
+  ): Promise<PublishResult> {
     const shapeErr = validateShape(raw)
     if (shapeErr) return fail(`invalid: ${shapeErr}`)
     const ev = canonical(raw as NostrEvent)
@@ -128,7 +134,10 @@ export function createNostrRelay(opts: NostrRelayOptions): NostrRelay {
     if (!ctx.trusted) {
       const ip = ctx.ip ?? ''
       if (ipBlocked(realm, ip)) return fail('blocked: your IP address is blocked')
-      if (policy.rateLimits?.ip && !limiter.take(`ip:${realmKey(realm)}:${ip}`, policy.rateLimits.ip))
+      if (
+        policy.rateLimits?.ip &&
+        !limiter.take(`ip:${realmKey(realm)}:${ip}`, policy.rateLimits.ip)
+      )
         return fail('rate-limited: slow down, too many events from your IP')
       if (policy.authRequired && ctx.ws && ctx.ws.data.authed.size === 0)
         return fail('auth-required: this relay requires authentication')
@@ -262,8 +271,10 @@ export function createNostrRelay(opts: NostrRelayOptions): NostrRelay {
     if (ipBlocked(ws.data.realm, ws.data.ip)) return 'blocked: your IP address is blocked'
     if (policy.authRequired && ws.data.authed.size === 0)
       return 'auth-required: this relay requires authentication'
-    if (policy.rateLimits?.reqIp &&
-      !limiter.take(`req:${realmKey(ws.data.realm)}:${ws.data.ip}`, policy.rateLimits.reqIp))
+    if (
+      policy.rateLimits?.reqIp &&
+      !limiter.take(`req:${realmKey(ws.data.realm)}:${ws.data.ip}`, policy.rateLimits.reqIp)
+    )
       return 'rate-limited: slow down, too many requests'
     const authKinds = policy.authRequiredKinds
     if (authKinds?.length && ws.data.authed.size === 0) {
@@ -311,7 +322,11 @@ export function createNostrRelay(opts: NostrRelayOptions): NostrRelay {
       !ws.data.subs.has(subId) &&
       ws.data.subs.size >= policy.maxSubscriptions
     )
-      return send(ws, ['CLOSED', subId, `error: too many subscriptions (max ${policy.maxSubscriptions})`])
+      return send(ws, [
+        'CLOSED',
+        subId,
+        `error: too many subscriptions (max ${policy.maxSubscriptions})`,
+      ])
     let rows: string[]
     try {
       rows = store.queryRaw(filters, realmKey(ws.data.realm), {
@@ -328,7 +343,10 @@ export function createNostrRelay(opts: NostrRelayOptions): NostrRelay {
     ws.data.subs.set(subId, filters)
     const rk = realmKey(ws.data.realm)
     let set = subscribers.get(rk)
-    if (!set) subscribers.set(rk, (set = new Set()))
+    if (!set) {
+      set = new Set()
+      subscribers.set(rk, set)
+    }
     set.add(ws)
   }
 
@@ -465,7 +483,10 @@ export function createNostrRelay(opts: NostrRelayOptions): NostrRelay {
         if (typeof msg[1] === 'string') ws.data.negs.delete(msg[1])
         return
       default:
-        return send(ws, ['NOTICE', `error: unknown message type ${JSON.stringify(msg[0]).slice(0, 32)}`])
+        return send(ws, [
+          'NOTICE',
+          `error: unknown message type ${JSON.stringify(msg[0]).slice(0, 32)}`,
+        ])
     }
   }
 
@@ -496,7 +517,9 @@ export function createNostrRelay(opts: NostrRelayOptions): NostrRelay {
       ...(policy.minPow !== undefined && { min_pow_difficulty: policy.minPow }),
       auth_required: !!policy.authRequired,
       restricted_writes: restricted,
-      ...(policy.writeAllowed && { payment_required: !!(policy.info?.payments_url ?? opts.info.payments_url) }),
+      ...(policy.writeAllowed && {
+        payment_required: !!(policy.info?.payments_url ?? opts.info.payments_url),
+      }),
       created_at_upper_limit: policy.maxFutureSeconds ?? 900,
       ...(policy.maxPastSeconds !== undefined && { created_at_lower_limit: policy.maxPastSeconds }),
       ...opts.info.limitation,
@@ -736,7 +759,8 @@ export function createNostrRelay(opts: NostrRelayOptions): NostrRelay {
       const body = await req.text()
       const auth = checkNip98(req, body)
       if (typeof auth === 'string') return mgmtJson({ result: null, error: auth }, 401)
-      if (!isAdmin(auth.pubkey, realm)) return mgmtJson({ result: null, error: 'not an admin' }, 401)
+      if (!isAdmin(auth.pubkey, realm))
+        return mgmtJson({ result: null, error: 'not an admin' }, 401)
       let rpc: { method?: unknown; params?: unknown }
       try {
         rpc = JSON.parse(body)

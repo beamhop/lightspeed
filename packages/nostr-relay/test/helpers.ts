@@ -2,8 +2,8 @@ import { schnorr } from '@noble/curves/secp256k1'
 import { sha256 } from '@noble/hashes/sha2'
 import { bytesToHex } from '@noble/hashes/utils'
 import type { Server } from 'bun'
-import { createNostrRelay } from '../src/index'
 import { computeId, powDifficulty } from '../src/event'
+import { createNostrRelay } from '../src/index'
 import type { NostrEvent, NostrRelay, NostrRelayOptions, NostrSocketData } from '../src/types'
 
 export interface Keys {
@@ -49,7 +49,8 @@ export function mine(keys: Keys, t: Template, bits: number): NostrEvent {
       content: t.content ?? '',
     }
     const id = computeId(base)
-    if (powDifficulty(id) >= bits) return { ...base, id, sig: bytesToHex(schnorr.sign(id, keys.sk)) }
+    if (powDifficulty(id) >= bits)
+      return { ...base, id, sig: bytesToHex(schnorr.sign(id, keys.sk)) }
   }
 }
 
@@ -157,7 +158,9 @@ export class Client {
         const j = this.waiters.indexOf(w)
         if (j >= 0) {
           this.waiters.splice(j, 1)
-          reject(new Error(`timeout waiting for message; last: ${JSON.stringify(this.all.slice(-3))}`))
+          reject(
+            new Error(`timeout waiting for message; last: ${JSON.stringify(this.all.slice(-3))}`),
+          )
         }
       }, timeoutMs)
     })
@@ -175,7 +178,10 @@ export class Client {
   }
 
   /** REQ and collect events until EOSE (or CLOSED). Subscription stays open unless closed. */
-  async req(subId: string, ...filters: object[]): Promise<{ events: NostrEvent[]; closed?: string }> {
+  async req(
+    subId: string,
+    ...filters: object[]
+  ): Promise<{ events: NostrEvent[]; closed?: string }> {
     this.send(['REQ', subId, ...filters])
     const events: NostrEvent[] = []
     for (;;) {

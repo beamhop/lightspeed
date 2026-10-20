@@ -9,11 +9,15 @@ const encoder = new TextEncoder()
 
 export const isHex64 = (s: unknown): s is string => typeof s === 'string' && HEX64.test(s)
 
-export function serializeForId(e: Pick<NostrEvent, 'pubkey' | 'created_at' | 'kind' | 'tags' | 'content'>) {
+export function serializeForId(
+  e: Pick<NostrEvent, 'pubkey' | 'created_at' | 'kind' | 'tags' | 'content'>,
+) {
   return JSON.stringify([0, e.pubkey, e.created_at, e.kind, e.tags, e.content])
 }
 
-export function computeId(e: Pick<NostrEvent, 'pubkey' | 'created_at' | 'kind' | 'tags' | 'content'>) {
+export function computeId(
+  e: Pick<NostrEvent, 'pubkey' | 'created_at' | 'kind' | 'tags' | 'content'>,
+) {
   return bytesToHex(sha256(encoder.encode(serializeForId(e))))
 }
 
@@ -33,7 +37,8 @@ export function validateShape(e: unknown): string | null {
   const ev = e as Record<string, unknown>
   if (!isHex64(ev.id)) return 'id must be 64 lowercase hex chars'
   if (!isHex64(ev.pubkey)) return 'pubkey must be 64 lowercase hex chars'
-  if (typeof ev.sig !== 'string' || !HEX128.test(ev.sig)) return 'sig must be 128 lowercase hex chars'
+  if (typeof ev.sig !== 'string' || !HEX128.test(ev.sig))
+    return 'sig must be 128 lowercase hex chars'
   if (typeof ev.created_at !== 'number' || !Number.isInteger(ev.created_at) || ev.created_at < 0)
     return 'created_at must be a non-negative integer'
   if (typeof ev.kind !== 'number' || !Number.isInteger(ev.kind) || ev.kind < 0 || ev.kind > 65535)

@@ -55,7 +55,10 @@ describe('NIP-01 basics', () => {
     const k = genKeys()
     const e = sign(k, { content: 'hi' })
     const badId = { ...e, content: 'tampered' }
-    expect(await c.publish(badId)).toEqual({ ok: false, message: 'invalid: event id does not match' })
+    expect(await c.publish(badId)).toEqual({
+      ok: false,
+      message: 'invalid: event id does not match',
+    })
     const other = sign(k, { content: 'other' })
     const badSig = { ...e, sig: other.sig }
     expect(await c.publish(badSig)).toEqual({ ok: false, message: 'invalid: bad signature' })
@@ -198,6 +201,11 @@ describe('NIP-01 basics', () => {
     expect(s.subscriptions).toBe(2)
     expect(s.events).toBe(5)
     expect(s.eventsPerSec).toBeGreaterThan(0)
-    expect(t.relay.subscriptions().map((x) => x.subId).sort()).toEqual(['s1', 's2'])
+    expect(
+      t.relay
+        .subscriptions()
+        .map((x) => x.subId)
+        .sort(),
+    ).toEqual(['s1', 's2'])
   })
 })

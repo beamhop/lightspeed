@@ -240,7 +240,11 @@ export class EventStore {
         return
       }
       if (e.kind !== 5 && this.isDeleted(realm, e)) {
-        result = { ok: false, message: 'blocked: this event was deleted by its author', stored: false }
+        result = {
+          ok: false,
+          message: 'blocked: this event was deleted by its author',
+          stored: false,
+        }
         return
       }
       let d: string | null = null
@@ -254,7 +258,11 @@ export class EventStore {
         }
         for (const old of existing) {
           if (old.created_at > e.created_at || (old.created_at === e.created_at && old.id < e.id)) {
-            result = { ok: false, message: 'duplicate: have a newer version of this event', stored: false }
+            result = {
+              ok: false,
+              message: 'duplicate: have a newer version of this event',
+              stored: false,
+            }
             return
           }
         }
@@ -434,7 +442,9 @@ export class EventStore {
   applyRetention(realm: string, rules: RetentionRule[], now = Math.floor(Date.now() / 1000)) {
     let deleted = 0
     for (const rule of rules) {
-      const kindSql = rule.kinds?.length ? ` AND kind IN (${rule.kinds.map(() => '?').join(',')})` : ''
+      const kindSql = rule.kinds?.length
+        ? ` AND kind IN (${rule.kinds.map(() => '?').join(',')})`
+        : ''
       const kinds = rule.kinds ?? []
       if (rule.maxAgeSeconds !== undefined) {
         const rows = this.db

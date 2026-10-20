@@ -64,7 +64,11 @@ export class ModerationStore implements Moderation {
   }
 
   banPubkey(realm: string | null, pubkey: string, reason = '') {
-    this.run(realm, "DELETE FROM mod_pubkeys WHERE realm = ? AND pubkey = ? AND status = 'allow'", pubkey)
+    this.run(
+      realm,
+      "DELETE FROM mod_pubkeys WHERE realm = ? AND pubkey = ? AND status = 'allow'",
+      pubkey,
+    )
     this.run(
       realm,
       "INSERT OR REPLACE INTO mod_pubkeys (realm, pubkey, status, reason) VALUES (?, ?, 'ban', ?)",
@@ -73,7 +77,11 @@ export class ModerationStore implements Moderation {
     )
   }
   unbanPubkey(realm: string | null, pubkey: string) {
-    this.run(realm, "DELETE FROM mod_pubkeys WHERE realm = ? AND pubkey = ? AND status = 'ban'", pubkey)
+    this.run(
+      realm,
+      "DELETE FROM mod_pubkeys WHERE realm = ? AND pubkey = ? AND status = 'ban'",
+      pubkey,
+    )
   }
   listBannedPubkeys(realm: string | null) {
     return this.db
@@ -81,7 +89,11 @@ export class ModerationStore implements Moderation {
       .all(realmKey(realm)) as { pubkey: string; reason: string }[]
   }
   allowPubkey(realm: string | null, pubkey: string, reason = '') {
-    this.run(realm, "DELETE FROM mod_pubkeys WHERE realm = ? AND pubkey = ? AND status = 'ban'", pubkey)
+    this.run(
+      realm,
+      "DELETE FROM mod_pubkeys WHERE realm = ? AND pubkey = ? AND status = 'ban'",
+      pubkey,
+    )
     this.run(
       realm,
       "INSERT OR REPLACE INTO mod_pubkeys (realm, pubkey, status, reason) VALUES (?, ?, 'allow', ?)",
@@ -90,7 +102,11 @@ export class ModerationStore implements Moderation {
     )
   }
   unallowPubkey(realm: string | null, pubkey: string) {
-    this.run(realm, "DELETE FROM mod_pubkeys WHERE realm = ? AND pubkey = ? AND status = 'allow'", pubkey)
+    this.run(
+      realm,
+      "DELETE FROM mod_pubkeys WHERE realm = ? AND pubkey = ? AND status = 'allow'",
+      pubkey,
+    )
   }
   listAllowedPubkeys(realm: string | null) {
     return this.db
@@ -98,7 +114,12 @@ export class ModerationStore implements Moderation {
       .all(realmKey(realm)) as { pubkey: string; reason: string }[]
   }
   banEvent(realm: string | null, id: string, reason = '') {
-    this.run(realm, 'INSERT OR REPLACE INTO mod_events (realm, id, reason) VALUES (?, ?, ?)', id, reason)
+    this.run(
+      realm,
+      'INSERT OR REPLACE INTO mod_events (realm, id, reason) VALUES (?, ?, ?)',
+      id,
+      reason,
+    )
   }
   unbanEvent(realm: string | null, id: string) {
     this.run(realm, 'DELETE FROM mod_events WHERE realm = ? AND id = ?', id)
@@ -110,11 +131,19 @@ export class ModerationStore implements Moderation {
   }
   allowKind(realm: string | null, kind: number) {
     this.run(realm, "DELETE FROM mod_kinds WHERE realm = ? AND kind = ? AND status = 'deny'", kind)
-    this.run(realm, "INSERT OR IGNORE INTO mod_kinds (realm, kind, status) VALUES (?, ?, 'allow')", kind)
+    this.run(
+      realm,
+      "INSERT OR IGNORE INTO mod_kinds (realm, kind, status) VALUES (?, ?, 'allow')",
+      kind,
+    )
   }
   disallowKind(realm: string | null, kind: number) {
     this.run(realm, "DELETE FROM mod_kinds WHERE realm = ? AND kind = ? AND status = 'allow'", kind)
-    this.run(realm, "INSERT OR IGNORE INTO mod_kinds (realm, kind, status) VALUES (?, ?, 'deny')", kind)
+    this.run(
+      realm,
+      "INSERT OR IGNORE INTO mod_kinds (realm, kind, status) VALUES (?, ?, 'deny')",
+      kind,
+    )
   }
   listAllowedKinds(realm: string | null) {
     return [...this.snapshot(realm).allowedKinds].sort((a, b) => a - b)
@@ -123,17 +152,28 @@ export class ModerationStore implements Moderation {
     return [...this.snapshot(realm).disallowedKinds].sort((a, b) => a - b)
   }
   blockIp(realm: string | null, ip: string, reason = '') {
-    this.run(realm, 'INSERT OR REPLACE INTO mod_ips (realm, ip, reason) VALUES (?, ?, ?)', ip, reason)
+    this.run(
+      realm,
+      'INSERT OR REPLACE INTO mod_ips (realm, ip, reason) VALUES (?, ?, ?)',
+      ip,
+      reason,
+    )
   }
   unblockIp(realm: string | null, ip: string) {
     this.run(realm, 'DELETE FROM mod_ips WHERE realm = ? AND ip = ?', ip)
   }
   listBlockedIps(realm: string | null) {
-    return this.db
-      .query('SELECT ip, reason FROM mod_ips WHERE realm = ?')
-      .all(realmKey(realm)) as { ip: string; reason: string }[]
+    return this.db.query('SELECT ip, reason FROM mod_ips WHERE realm = ?').all(realmKey(realm)) as {
+      ip: string
+      reason: string
+    }[]
   }
   setInfo(realm: string | null, key: 'name' | 'description' | 'icon', value: string) {
-    this.run(realm, 'INSERT OR REPLACE INTO relay_meta (realm, key, value) VALUES (?, ?, ?)', key, value)
+    this.run(
+      realm,
+      'INSERT OR REPLACE INTO relay_meta (realm, key, value) VALUES (?, ?, ?)',
+      key,
+      value,
+    )
   }
 }
