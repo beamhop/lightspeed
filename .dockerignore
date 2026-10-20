@@ -1,0 +1,10 @@
+**/node_modules
+**/dist
+**/dist-mock
+.git
+.claude
+**/*.db
+**/*.db-wal
+**/*.db-shm
+data
+coverage

@@ -1,0 +1,15 @@
+# Caddy terminates HTTPS/WSS for the Beamhop relay and gets certificates via ACME.
+# WebSockets (Nostr, data relay, admin stats) are proxied transparently.
+{$RELAY_DOMAIN} {
+	encode zstd gzip
+	# Blossom uploads can be large; match blossom.max_upload_bytes in the relay config.
+	request_body {
+		max_size 120MB
+	}
+	# Keep /metrics private (scrape it from inside the Docker network instead).
+	@metrics path /metrics
+	respond @metrics 404
+	reverse_proxy relay:8080 {
+		flush_interval -1
+	}
+}

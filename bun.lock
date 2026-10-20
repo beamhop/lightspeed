@@ -90,10 +90,17 @@
     "packages/relay": {
       "name": "@beamhop/relay",
       "version": "0.0.0",
+      "bin": {
+        "beamhop-relay": "./src/bin.ts",
+      },
       "dependencies": {
         "@beamhop/nostr-relay": "workspace:*",
         "@beamhop/p2p": "workspace:*",
+        "@beamhop/relay-admin": "workspace:*",
         "@beamhop/turn": "workspace:*",
+        "@noble/curves": "^1.6.0",
+        "@noble/hashes": "^1.5.0",
+        "qrcode-generator": "^1.4.4",
       },
     },
     "packages/relay-admin": {
@@ -1259,6 +1266,8 @@
     "@astrojs/starlight/magic-string": ["magic-string@1.4.3", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.6.0" } }, "sha512-z12OxmaPGE0F4xlpGdjuAUckipLpQlTAuAmyGhNoD7ODpYUzvDfvtxUbjM/jwznyP178oju/KDdyi220wNJ0RQ=="],
 
     "@babel/helper-compilation-targets/lru-cache": ["lru-cache@5.1.1", "", { "dependencies": { "yallist": "^3.0.2" } }, "sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w=="],
+
+    "@beamhop/relay/qrcode-generator": ["qrcode-generator@1.5.2", "", {}, "sha512-pItrW0Z9HnDBnFmgiNrY1uxRdri32Uh9EjNYLPVC2zZ3ZRIIEqBoDgm4DkvDwNNDHTK7FNkmr8zAa77BYc9xNw=="],
 
     "@beamhop/studio/@happy-dom/global-registrator": ["@happy-dom/global-registrator@18.0.1", "", { "dependencies": { "@types/node": "^20.0.0", "happy-dom": "^18.0.1" } }, "sha512-xCy/cpEP8xyJ6u0eokYgaQxeUmcKqHx/+aC3R0DLa7/S38efhZAVDQqLJ5zzTguLFS0gvAzZHP40NGaLwRyapQ=="],
 
