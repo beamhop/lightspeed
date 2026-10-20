@@ -1,0 +1,11 @@
+{
+  "name": "@beamhop/turn",
+  "version": "0.0.0",
+  "description": "STUN/TURN server in TypeScript for Bun",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "test": "bun test", "build": "bun build ./src/index.ts --outdir dist --target browser && tsc --emitDeclarationOnly --outDir dist" }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "@beamhop/relay-admin",
+  "version": "0.0.0",
+  "description": "Admin SPA for the Beamhop relay",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "build": "bun build ./src/index.ts --outdir dist --target browser && tsc --emitDeclarationOnly --outDir dist"
+  },
+  "dependencies": {
+    "@beamhop/ui": "workspace:*"
+  }
+}

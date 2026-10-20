@@ -1,0 +1,23 @@
+{
+  "name": "beamhop",
+  "version": "0.0.0",
+  "description": "Beamhop CLI: relay, studio, init",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "build": "bun build ./src/index.ts --outdir dist --target browser && tsc --emitDeclarationOnly --outDir dist"
+  },
+  "dependencies": {
+    "@beamhop/relay": "workspace:*",
+    "@beamhop/studio": "workspace:*"
+  },
+  "bin": {
+    "beamhop": "./src/index.ts"
+  }
+}

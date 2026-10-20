@@ -1,0 +1,21 @@
+{
+  "name": "@beamhop/relay",
+  "version": "0.0.0",
+  "description": "Beamhop relay: Nostr relay, TURN, data relay, admin UI, Blossom and payments in one Bun process",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "build": "bun build ./src/index.ts --outdir dist --target browser && tsc --emitDeclarationOnly --outDir dist"
+  },
+  "dependencies": {
+    "@beamhop/p2p": "workspace:*",
+    "@beamhop/nostr-relay": "workspace:*",
+    "@beamhop/turn": "workspace:*"
+  }
+}
