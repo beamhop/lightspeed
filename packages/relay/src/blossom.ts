@@ -190,9 +190,17 @@ export class Blossom {
 
   /** Reason the upload must be refused, or null. */
   private checkLimits(scope: string, pubkey: string, size: number, type: string): string | null {
-    if (scope && !this.apps.active(scope)) return 'unknown app'
-    if (size > this.opts.maxUploadBytes) return `blob exceeds ${this.opts.maxUploadBytes} bytes`
+    const app = scope ? this.apps.active(scope) : null
+    if (scope && !app) return 'unknown app'
+    const max =
+      app && app.blossomMaxBlobBytes > 0
+        ? Math.min(app.blossomMaxBlobBytes, this.opts.maxUploadBytes)
+        : this.opts.maxUploadBytes
+    if (size > max) return `blob exceeds ${max} bytes`
     if (!mimeAllowed(type, this.opts.allowedMime)) return `type ${type} not allowed`
+    if (app?.blossomAllowedMime.length && !mimeAllowed(type, app.blossomAllowedMime)) {
+      return `type ${type} not allowed`
+    }
     const quota = this.scopeQuota(scope)
     if (quota > 0 && this.scopeUsage(scope) + size > quota) return 'storage quota exceeded'
     if (

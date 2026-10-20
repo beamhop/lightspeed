@@ -57,6 +57,7 @@
       "dependencies": {
         "@beamhop/nostr-relay": "workspace:*",
         "@beamhop/p2p": "workspace:*",
+        "@beamhop/relay-admin": "workspace:*",
         "@beamhop/turn": "workspace:*",
         "@noble/curves": "^1.6.0",
         "@noble/hashes": "^1.5.0",

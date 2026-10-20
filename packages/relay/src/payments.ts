@@ -13,6 +13,9 @@ export interface Plan {
   durationDays: number
   active: boolean
   createdAt: number
+  /** SPA aliases */
+  priceSats: number
+  periodDays: number
 }
 
 export interface Invoice {
@@ -25,6 +28,9 @@ export interface Invoice {
   createdAt: number
   expiresAt: number
   paidAt: number | null
+  /** SPA aliases */
+  id: string
+  amountSats: number
 }
 
 export interface PaidPubkey {
@@ -32,6 +38,7 @@ export interface PaidPubkey {
   planId: number | null
   expiresAt: number
   updatedAt: number
+  since?: number
 }
 
 const planFromRow = (r: Record<string, unknown>): Plan => ({
@@ -42,6 +49,8 @@ const planFromRow = (r: Record<string, unknown>): Plan => ({
   durationDays: r.duration_days as number,
   active: !!r.active,
   createdAt: r.created_at as number,
+  priceSats: r.amount_sats as number,
+  periodDays: r.duration_days as number,
 })
 
 const invoiceFromRow = (r: Record<string, unknown>): Invoice => ({
@@ -54,6 +63,8 @@ const invoiceFromRow = (r: Record<string, unknown>): Invoice => ({
   createdAt: r.created_at as number,
   expiresAt: r.expires_at as number,
   paidAt: (r.paid_at as number | null) ?? null,
+  id: r.payment_hash as string,
+  amountSats: Math.floor((r.amount_msat as number) / 1000),
 })
 
 /**
@@ -110,15 +121,24 @@ export class Payments {
     this.adb.setSetting('nwc_url', url)
   }
 
+  /** Wallet status without the secret: SPA `NwcStatus` fields plus the relay list. */
   nwcStatus() {
-    if (!this.nwcUrl) return { configured: false }
+    const lnurl = this.adb.getSetting<string>('lnurl') || undefined
+    if (!this.nwcUrl) return { configured: false, connected: false, lnurl }
     const u = parseNwcUrl(this.nwcUrl)
     return {
       configured: true,
+      connected: !!this.nwc,
       walletPubkey: u.walletPubkey,
+      relay: u.relays[0],
       relays: u.relays,
       lud16: u.lud16 ?? null,
+      lnurl: lnurl ?? u.lud16,
     }
+  }
+
+  setLnurl(lnurl: string) {
+    this.adb.setSetting('lnurl', lnurl.trim())
   }
 
   get enabled(): boolean {
@@ -147,8 +167,8 @@ export class Payments {
   /** Create a plan, or update one when `id` is given. */
   savePlan(input: Record<string, unknown>): Plan {
     const name = String(input.name ?? '').trim()
-    const amountSats = Number(input.amountSats)
-    const durationDays = Number(input.durationDays)
+    const amountSats = Number(input.amountSats ?? input.priceSats)
+    const durationDays = Number(input.durationDays ?? input.periodDays)
     const description = String(input.description ?? '')
     const active = input.active === undefined ? true : !!input.active
     if (!name) throw new HttpError(400, 'invalid', 'name is required')

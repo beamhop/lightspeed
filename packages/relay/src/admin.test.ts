@@ -230,18 +230,20 @@ describe('password + TOTP', () => {
 
 describe('apps', () => {
   let apiKey = ''
+  let firstSecret = ''
   test('create, list, get, patch', async () => {
     const c = await api(t.base, '/api/admin/apps', {
       cookie,
       body: { name: 'My Game!', blossomQuotaBytes: 1000, policy: { kinds: { deny: [4] } } },
     })
     expect(c.status).toBe(201)
-    expect(c.body.app.id).toBe('my-game')
-    expect(c.body.app.turnSecret).toHaveLength(64)
-    expect(c.body.app.blossomQuotaBytes).toBe(1000)
+    expect(c.body.id).toBe('my-game')
+    expect(c.body.turnSecret).toHaveLength(64)
+    expect(c.body.blossomQuotaBytes).toBe(1000)
     expect(c.body.apiKey).toMatch(/^bhk_[0-9a-f]{48}$/)
     expect(c.body.policy).toEqual({ kinds: { deny: [4] } })
     apiKey = c.body.apiKey
+    firstSecret = c.body.turnSecret
     expect(
       (await api(t.base, '/api/admin/apps', { cookie, body: { name: 'dup', id: 'my-game' } }))
         .status,
@@ -258,7 +260,7 @@ describe('apps', () => {
       cookie,
       body: { plan: 'pro', turnMonthlyBytes: 5e9, bogus: 1 },
     })
-    expect(p.body.app).toMatchObject({ plan: 'pro', turnMonthlyBytes: 5e9 })
+    expect(p.body).toMatchObject({ plan: 'pro', turnMonthlyBytes: 5e9 })
     expect(
       (
         await api(t.base, '/api/admin/apps/my-game', {
@@ -272,9 +274,11 @@ describe('apps', () => {
   })
 
   test('rotate TURN secret and API key', async () => {
-    const before = (await api(t.base, '/api/admin/apps/my-game', { cookie })).body.app
+    const before = (await api(t.base, '/api/admin/apps/my-game', { cookie })).body
+    expect(before.turnSecret).toBeUndefined()
+    expect(before.turnSecretHint).toBe(`…${firstSecret.slice(-4)}`)
     const r1 = await api(t.base, '/api/admin/apps/my-game/rotate-turn-secret', { cookie, body: {} })
-    expect(r1.body.app.turnSecret).not.toBe(before.turnSecret)
+    expect(r1.body.turnSecret).not.toBe(firstSecret)
     const r2 = await api(t.base, '/api/admin/apps/my-game/rotate-api-key', { cookie, body: {} })
     expect(r2.body.apiKey).not.toBe(apiKey)
     const creds = (key: string) =>
@@ -301,7 +305,7 @@ describe('apps', () => {
       cookie,
       body: { policy: { minPow: 8, pubkeys: { deny: ['A'.repeat(64)] } } },
     })
-    expect(g.body.policy).toEqual({ minPow: 8, pubkeys: { deny: ['a'.repeat(64)] } })
+    expect(g.body).toEqual({ minPow: 8, pubkeys: { deny: ['a'.repeat(64)] } })
     expect(t.nostr().opts.policy?.get(null).minPow).toBe(8)
     expect(
       (
@@ -313,7 +317,7 @@ describe('apps', () => {
       ).status,
     ).toBe(400)
     expect((await api(t.base, '/api/admin/policies/nope', { cookie })).status).toBe(404)
-    expect((await api(t.base, '/api/admin/policies/my-game', { cookie })).body.policy).toEqual({
+    expect((await api(t.base, '/api/admin/policies/my-game', { cookie })).body).toEqual({
       kinds: { deny: [4] },
     })
   })
@@ -398,8 +402,8 @@ describe('nostr, turn, bans, nip11, settings, backups', () => {
       cookie,
       body: { info: { name: 'Renamed', description: 'd', evil: 1 } },
     })
-    expect(r.body.info.name).toBe('Renamed')
-    expect(r.body.info.evil).toBeUndefined()
+    expect(r.body.name).toBe('Renamed')
+    expect(r.body.evil).toBeUndefined()
     expect(t.nostr().info.name).toBe('Renamed')
   })
 

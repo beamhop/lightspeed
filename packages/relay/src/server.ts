@@ -27,7 +27,7 @@ import { createNwcClient, type NwcClient } from './nwc'
 import { payPage, qrSvg } from './pay-page'
 import { Payments } from './payments'
 import { BanStore, PolicyStore } from './policy'
-import { resolveAdminDist, serveAdmin } from './static'
+import { adminDistFromPackage, resolveAdminDist, serveAdmin } from './static'
 import { handleTurnCredentials, turnHooks } from './turn-credentials'
 import { TURN_METRICS, UsageMeter } from './usage'
 import { getPublicKey, normalizePubkey, randomHex, signEvent } from './util/crypto'
@@ -162,6 +162,7 @@ class RelayServerImpl implements RelayServer, RelayContext {
     this.policies = new PolicyStore(this.adb, this.bans, {
       paymentsRequired: () => this.config.payments.required,
       isPaid: (pk) => this.payments.isPaid(pk),
+      admins: () => [this.relayPubkey],
     })
     this.auth = new AdminAuth(this.adb, { sessionTtlSec: this.config.admin.sessionTtlHours * 3600 })
     this.blossom = new Blossom(this.adb, this.apps, this.bans, this.meter, {
@@ -259,6 +260,7 @@ class RelayServerImpl implements RelayServer, RelayContext {
         info: this.nip11,
         policy: this.policies,
         auth: { relayUrl: this.publicBase().replace(/^http/, 'ws') },
+        admins: [this.relayPubkey],
       })
     } else if (this.deps.nostrFactory === undefined) {
       this.logger.error(
@@ -266,6 +268,7 @@ class RelayServerImpl implements RelayServer, RelayContext {
       )
     }
 
+    if (!this.adminDist && !this.config.admin.distDir) this.adminDist = await adminDistFromPackage()
     this.serveOpts = this.buildServeOptions()
     this.server = Bun.serve(this.serveOpts as Parameters<typeof Bun.serve>[0])
     this.tlsMtime = this.certMtime()
@@ -307,7 +310,16 @@ class RelayServerImpl implements RelayServer, RelayContext {
     this.timers.push(setInterval(() => this.safe(() => this.meter.flush()), 10_000))
     this.timers.push(setInterval(() => this.safe(() => this.payments.pollPending()), 15_000))
     this.timers.push(setInterval(() => this.publishStats(), 1000))
-    this.timers.push(setInterval(() => this.safe(() => this.checkTls()), 60_000))
+    this.timers.push(
+      setInterval(
+        () =>
+          this.safe(() => {
+            this.checkTls()
+            this.alerts()
+          }),
+        60_000,
+      ),
+    )
     for (const t of this.timers) (t as { unref?: () => void }).unref?.()
     this.scheduleBackup()
 
@@ -670,7 +682,7 @@ h1{color:#5EEAD4}a{color:#8B7BFF}</style></head><body><main><h1>${name}</h1>
   }
 
   alerts(): Alert[] {
-    return evaluateAlerts(this.adb, {
+    const alerts = evaluateAlerts(this.adb, {
       dataDir: this.dataDir,
       diskPercent: this.config.alerts.diskPercent,
       errorRate: this.http.errorRate(),
@@ -679,22 +691,53 @@ h1{color:#5EEAD4}a{color:#8B7BFF}</style></head><body><main><h1>${name}</h1>
       certDays: this.config.alerts.certDays,
       turnQuotaExhausted: this.turnQuotaExhausted(),
     })
+    this.alertCount = alerts.filter((a) => !a.acked).length
+    return alerts
   }
 
+  private diskStats() {
+    const d = diskUsage(this.dataDir)
+    return d
+      ? { usedBytes: d.totalBytes - d.freeBytes, totalBytes: d.totalBytes, usedRatio: d.usedRatio }
+      : { usedBytes: 0, totalBytes: 0, usedRatio: 0 }
+  }
+
+  /** Frame pushed on /api/admin/stats every second (admin SPA `StatsMessage` + relay extras). */
   stats(): Record<string, unknown> {
     let requests = 0
     for (const v of this.http.byClass.values()) requests += v
+    const n = this.nostr?.stats()
+    const t = this.turn?.stats()
+    const uptimeSec = Math.floor(Date.now() / 1000) - this.startedAt
+    const now = Date.now()
     return {
       type: 'stats',
-      at: Date.now(),
-      uptime: Math.floor(Date.now() / 1000) - this.startedAt,
-      nostr: this.nostr?.stats() ?? null,
-      turn: this.turn?.stats() ?? null,
+      ts: now,
+      at: now,
+      uptimeSec,
+      uptime: uptimeSec,
+      nostr: {
+        events: n?.events ?? 0,
+        subscriptions: n?.subscriptions ?? 0,
+        clients: n?.clients ?? 0,
+        eventsPerSec: n?.eventsPerSec ?? 0,
+      },
+      turn: {
+        allocations: t?.allocations ?? 0,
+        bytesIn: t?.bytesIn ?? 0,
+        bytesOut: t?.bytesOut ?? 0,
+        bps: t?.bps ?? 0,
+      },
+      engines: { nostr: !!this.nostr, turn: !!this.turn },
+      disk: this.diskStats(),
+      alerts: this.alertCount,
       data: this.dataRelay.stats(),
       http: { requests, errorRate: this.http.errorRate() },
       blossom: this.blossom.stats(),
     }
   }
+
+  private alertCount = 0
 
   private publishStats() {
     if (!this.server || this.server.subscriberCount(STATS_TOPIC) === 0) return
@@ -706,9 +749,19 @@ h1{color:#5EEAD4}a{color:#8B7BFF}</style></head><body><main><h1>${name}</h1>
   }
 
   overview(): Record<string, unknown> {
-    const disk = diskUsage(this.dataDir)
     const certExp = certExpiry(this.config.http.tlsCert)
+    const stats = this.stats()
+    const alerts = this.alerts()
+    const blobs = this.blossom.stats()
     return {
+      // admin SPA `Overview`
+      nostr: stats.nostr,
+      turn: stats.turn,
+      disk: stats.disk,
+      uptimeSec: stats.uptimeSec,
+      apps: this.apps.count(),
+      blobs: { count: blobs.blobs, bytes: blobs.bytes },
+      alerts,
       version: VERSION,
       startedAt: this.startedAt,
       uptime: Math.floor(Date.now() / 1000) - this.startedAt,
@@ -717,13 +770,11 @@ h1{color:#5EEAD4}a{color:#8B7BFF}</style></head><body><main><h1>${name}</h1>
         admins: this.auth.adminCount(),
         paidPubkeys: this.payments.paid().filter((p) => p.expiresAt > this.adb.now()).length,
         revenueSats: this.payments.revenueSats(),
-        ...this.stats(),
-        type: undefined,
+        data: stats.data,
+        http: stats.http,
       },
       engines: { nostr: !!this.nostr, turn: !!this.turn, turnPorts: this.turnPorts },
-      disk,
       tls: { enabled: !!this.config.http.tlsCert, expiresAt: certExp },
-      alerts: this.alerts(),
     }
   }
 

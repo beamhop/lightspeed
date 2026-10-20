@@ -22,9 +22,13 @@ export interface Admin {
   id: number
   pubkey: string | null
   username: string | null
+  role: 'owner' | 'admin'
   hasTotp: boolean
+  /** Same as hasTotp (admin SPA field name). */
+  totpEnabled: boolean
   createdAt: number
   createdBy: string
+  lastLoginAt: number | null
 }
 
 export interface Session {
@@ -47,15 +51,20 @@ interface AdminRow {
   totp_last_step: number
   created_at: number
   created_by: string
+  role: string
+  last_login_at: number | null
 }
 
 const adminFromRow = (r: AdminRow): Admin => ({
   id: r.id,
   pubkey: r.pubkey,
   username: r.username,
+  role: r.role === 'owner' ? 'owner' : 'admin',
   hasTotp: !!r.totp_secret,
+  totpEnabled: !!r.totp_secret,
   createdAt: r.created_at,
   createdBy: r.created_by,
+  lastLoginAt: r.last_login_at ?? null,
 })
 
 /** Audit actor string for an admin: `pubkey:<hex>` or `user:<name>`. */
@@ -103,6 +112,16 @@ export class AdminAuth {
   }
 
   async createAdmin(
+    input: { pubkey?: unknown; username?: unknown; password?: unknown; role?: unknown },
+    by: string,
+  ): Promise<NewAdminResult> {
+    const res = await this.insertAdmin(input, by)
+    const role = by === 'bootstrap' || input.role === 'owner' ? 'owner' : 'admin'
+    this.adb.db.query('UPDATE admins SET role = ? WHERE id = ?').run(role, res.admin.id)
+    return { ...res, admin: this.getAdmin(res.admin.id) as Admin }
+  }
+
+  private async insertAdmin(
     input: { pubkey?: unknown; username?: unknown; password?: unknown },
     by: string,
   ): Promise<NewAdminResult> {
@@ -282,6 +301,7 @@ export class AdminAuth {
     const token = randomHex(32)
     const id = randomHex(8)
     const t = this.now()
+    this.adb.db.query('UPDATE admins SET last_login_at = ? WHERE id = ?').run(t, admin.id)
     this.adb.db
       .query(
         `INSERT INTO sessions (id, token_hash, admin_id, method, ip, user_agent, created_at, expires_at, last_seen_at)

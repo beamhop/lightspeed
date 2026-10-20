@@ -9,7 +9,15 @@ export interface Alert {
   message: string
   acked: boolean
   app?: string
+  // Admin SPA field names
+  level: 'warning' | 'critical'
+  code: string
+  createdAt: number
+  acknowledged: boolean
+  target?: { app?: string }
 }
+
+const firstSeen = new Map<string, number>()
 
 export function diskUsage(
   path: string,
@@ -55,7 +63,7 @@ export interface AlertInputs {
 
 /** Evaluate the built-in alerts and merge acknowledgements from admin.db. */
 export function evaluateAlerts(adb: AdminDb, i: AlertInputs): Alert[] {
-  const out: Omit<Alert, 'acked'>[] = []
+  const out: Pick<Alert, 'id' | 'severity' | 'kind' | 'message' | 'app'>[] = []
   const disk = diskUsage(i.dataDir)
   if (disk && disk.usedRatio * 100 > i.diskPercent) {
     out.push({
@@ -103,7 +111,20 @@ export function evaluateAlerts(adb: AdminDb, i: AlertInputs): Alert[] {
   const active = new Set(out.map((a) => a.id))
   for (const id of acks)
     if (!active.has(id)) adb.db.query('DELETE FROM alert_acks WHERE id = ?').run(id)
-  return out.map((a) => ({ ...a, acked: acks.has(a.id) }))
+  for (const id of firstSeen.keys()) if (!active.has(id)) firstSeen.delete(id)
+  return out.map((a) => {
+    if (!firstSeen.has(a.id)) firstSeen.set(a.id, adb.now())
+    const acked = acks.has(a.id)
+    return {
+      ...a,
+      acked,
+      level: a.severity,
+      code: a.kind,
+      createdAt: firstSeen.get(a.id) as number,
+      acknowledged: acked,
+      ...(a.app ? { target: { app: a.app } } : {}),
+    }
+  })
 }
 
 export function ackAlert(adb: AdminDb, id: string, by: string) {

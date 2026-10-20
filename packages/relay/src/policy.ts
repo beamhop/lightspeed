@@ -1,13 +1,64 @@
 import type { AdminDb } from './db'
-import type { Policy, PolicyProvider, RateLimit, RetentionRule } from './engines'
+import type { Policy, PolicyProvider } from './engines'
 import { HttpError } from './util/http'
 
 export const GLOBAL_REALM = '_global'
 
-/** Policy document as stored in admin.db (Policy minus the hook, plus relay-level switches). */
-export type StoredPolicy = Omit<Policy, 'writeAllowed'> & {
+/** Rate limit as edited in the admin UI: `events` per `windowSec` (0 events = unlimited). */
+export interface AdminRateLimit {
+  events: number
+  windowSec: number
+}
+
+export interface AdminRetentionRule {
+  kinds?: number[]
+  maxAgeSec?: number
+  maxCount?: number
+}
+
+/**
+ * Policy document as stored in admin.db and exchanged with the admin SPA. Translated to the
+ * engine's `Policy` (token buckets, maxEventBytes, maxAgeSeconds) by `toEnginePolicy`.
+ */
+export interface StoredPolicy {
+  pubkeys?: { allow?: string[]; deny?: string[] }
+  kinds?: { allow?: number[]; deny?: number[] }
+  rateLimits?: { perIp?: AdminRateLimit; perPubkey?: AdminRateLimit }
+  maxEventSize?: number
+  minPow?: number
+  authRequiredKinds?: number[]
+  /** Require NIP-42 AUTH for every read and write on this realm. */
+  authRequired?: boolean
+  retention?: AdminRetentionRule[]
   /** Writes need a paid plan (Lightning payments). Global default: payments.required. */
   requirePayment?: boolean
+}
+
+const bucket = (r: AdminRateLimit | undefined) =>
+  r && r.events > 0 && r.windowSec > 0
+    ? { rate: r.events / r.windowSec, burst: r.events }
+    : undefined
+
+/** Admin policy document -> engine Policy (without the writeAllowed hook). */
+export function toEnginePolicy(p: StoredPolicy): Policy {
+  const out: Policy = {}
+  if (p.pubkeys) out.pubkeys = { ...p.pubkeys }
+  if (p.kinds) out.kinds = { ...p.kinds }
+  const ip = bucket(p.rateLimits?.perIp)
+  const pubkey = bucket(p.rateLimits?.perPubkey)
+  if (ip || pubkey) out.rateLimits = { ip, pubkey }
+  if (p.maxEventSize) out.maxEventBytes = p.maxEventSize
+  if (p.minPow) out.minPow = p.minPow
+  if (p.authRequiredKinds?.length) out.authRequiredKinds = p.authRequiredKinds
+  if (p.authRequired) out.authRequired = true
+  if (p.retention?.length) {
+    out.retention = p.retention.map((r) => ({
+      kinds: r.kinds,
+      maxAgeSeconds: r.maxAgeSec || undefined,
+      maxCount: r.maxCount || undefined,
+    }))
+  }
+  return out
 }
 
 export interface Ban {
@@ -132,14 +183,14 @@ const num = (v: unknown, key: string): number | undefined => {
     throw new HttpError(400, 'invalid', `${key} must be a number >= 0`)
   return n
 }
-const rate = (v: unknown, key: string): RateLimit | undefined => {
+const rate = (v: unknown, key: string): AdminRateLimit | undefined => {
   if (v === undefined || v === null) return undefined
   const o = v as Record<string, unknown>
-  const count = num(o.count, `${key}.count`)
+  const events = num(o.events ?? o.count, `${key}.events`)
   const windowSec = num(o.windowSec, `${key}.windowSec`)
-  if (count === undefined || windowSec === undefined)
-    throw new HttpError(400, 'invalid', `${key} needs count and windowSec`)
-  return { count, windowSec }
+  if (events === undefined || windowSec === undefined)
+    throw new HttpError(400, 'invalid', `${key} needs events and windowSec`)
+  return { events, windowSec }
 }
 
 /** Validate a policy document from the admin API. Unknown keys are dropped. */
@@ -170,13 +221,14 @@ export function sanitizePolicy(input: unknown): StoredPolicy {
   if (p.retention !== undefined) {
     if (!Array.isArray(p.retention)) throw new HttpError(400, 'invalid', 'retention must be a list')
     out.retention = p.retention.map(
-      (r: Record<string, unknown>, i): RetentionRule => ({
+      (r: Record<string, unknown>, i): AdminRetentionRule => ({
         kinds: numArr(r.kinds, `retention[${i}].kinds`),
         maxAgeSec: num(r.maxAgeSec, `retention[${i}].maxAgeSec`),
         maxCount: num(r.maxCount, `retention[${i}].maxCount`),
       }),
     )
   }
+  if (p.authRequired !== undefined) out.authRequired = !!p.authRequired
   if (p.requirePayment !== undefined) out.requirePayment = !!p.requirePayment
   return JSON.parse(JSON.stringify(out)) as StoredPolicy
 }
@@ -191,7 +243,12 @@ export class PolicyStore implements PolicyProvider {
   constructor(
     private adb: AdminDb,
     private bans: BanStore,
-    private opts: { paymentsRequired: () => boolean; isPaid: (pubkey: string) => boolean },
+    private opts: {
+      paymentsRequired: () => boolean
+      isPaid: (pubkey: string) => boolean
+      /** NIP-86 admins for every realm (the relay's own key). */
+      admins?: () => string[]
+    },
   ) {}
 
   stored(realm: string): StoredPolicy | null {
@@ -224,9 +281,12 @@ export class PolicyStore implements PolicyProvider {
     const deny = [...new Set([...(rules.pubkeys?.deny ?? []), ...banned])]
     const needsPayment =
       requirePayment ?? (key === GLOBAL_REALM ? this.opts.paymentsRequired() : false)
+    const engine = toEnginePolicy(rules)
+    const admins = this.opts.admins?.() ?? []
     const policy: Policy = {
-      ...rules,
-      pubkeys: { ...rules.pubkeys, deny },
+      ...engine,
+      ...(admins.length ? { admins } : {}),
+      pubkeys: { ...engine.pubkeys, deny },
       writeAllowed: (pubkey: string) => {
         if (this.bans.pubkeyBanned(pubkey)) return false
         if (needsPayment) return this.opts.isPaid(pubkey)

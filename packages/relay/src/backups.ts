@@ -83,10 +83,38 @@ export function pruneBackups(
   return removed
 }
 
-/** Milliseconds until the next local `hour`:00. */
+/** One backup run (admin + nostr files sharing a timestamp), in the admin SPA's `Backup` shape. */
+export interface BackupRun {
+  id: string
+  createdAt: number
+  sizeBytes: number
+  files: string[]
+  status: 'done'
+}
+
+export function groupBackups(files: BackupFile[]): BackupRun[] {
+  const runs = new Map<string, BackupRun>()
+  for (const f of files) {
+    const id = f.name.replace(/^[a-z]+-/, '').replace(/\.db$/, '')
+    const run = runs.get(id) ?? {
+      id,
+      createdAt: f.createdAt,
+      sizeBytes: 0,
+      files: [],
+      status: 'done',
+    }
+    run.sizeBytes += f.size
+    run.files.push(f.name)
+    run.createdAt = Math.min(run.createdAt, f.createdAt)
+    runs.set(id, run)
+  }
+  return [...runs.values()].sort((a, b) => b.id.localeCompare(a.id))
+}
+
+/** Milliseconds until the next `hour`:00 UTC. */
 export function msUntilHour(hour: number, now = new Date()): number {
   const next = new Date(now)
-  next.setHours(hour, 0, 0, 0)
-  if (next.getTime() <= now.getTime()) next.setDate(next.getDate() + 1)
+  next.setUTCHours(hour, 0, 0, 0)
+  if (next.getTime() <= now.getTime()) next.setUTCDate(next.getUTCDate() + 1)
   return next.getTime() - now.getTime()
 }

@@ -10,7 +10,7 @@ beforeAll(async () => {
   t = await startTestRelay({ nostr: { name: 'Test relay' } })
   cookie = await bootstrapPubkeyAdmin(t, getPublicKey(randomHex(32)))
   const r = await api(t.base, '/api/admin/apps', { cookie, body: { name: 'Chat App', id: 'chat' } })
-  appId = r.body.app.id
+  appId = r.body.id
 })
 afterAll(() => t.close())
 

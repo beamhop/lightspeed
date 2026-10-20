@@ -127,6 +127,7 @@ export function turnHooks(
         allowed: !exhausted,
         maxAllocations: app.turnMaxAllocations || undefined,
         maxBps: app.turnMaxBps || undefined,
+        group: app.id,
       }
     },
     onUsage(u: { username: string; bytesIn: number; bytesOut: number }) {

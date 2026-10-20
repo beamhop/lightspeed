@@ -13,7 +13,7 @@ beforeAll(async () => {
   cookie = await bootstrapPubkeyAdmin(t, getPublicKey(randomHex(32)))
   const r = await api(t.base, '/api/admin/apps', { cookie, body: { name: 'Game', id: 'game' } })
   apiKey = r.body.apiKey
-  secret = r.body.app.turnSecret
+  secret = r.body.turnSecret
 })
 afterAll(() => t.close())
 
@@ -108,7 +108,7 @@ describe('POST /a/<appId>/turn-credentials', () => {
     const hooks = t.turn().opts
     const future = Math.floor(Date.now() / 1000) + 100
     const user = `${future}:game:${'a'.repeat(64)}`
-    expect(hooks.credentials(user)?.password).toBe(turnPassword(secret, user))
+    expect((await hooks.credentials(user))?.password).toBe(turnPassword(secret, user))
     expect(hooks.credentials(`1:game:${'a'.repeat(64)}`)).toBeNull()
     expect(hooks.credentials(`${future}:nope:x`)).toBeNull()
     expect(hooks.credentials('garbage')).toBeNull()
@@ -116,6 +116,7 @@ describe('POST /a/<appId>/turn-credentials', () => {
       allowed: true,
       maxAllocations: undefined,
       maxBps: undefined,
+      group: 'game',
     })
 
     await api(t.base, '/api/admin/apps/game', {
@@ -138,8 +139,10 @@ describe('POST /a/<appId>/turn-credentials', () => {
       cookie,
       body: {},
     })
-    expect(hooks.credentials(user)?.password).toBe(turnPassword(rotated.body.app.turnSecret, user))
-    expect(hooks.credentials(user)?.password).not.toBe(turnPassword(secret, user))
+    expect((await hooks.credentials(user))?.password).toBe(
+      turnPassword(rotated.body.turnSecret, user),
+    )
+    expect((await hooks.credentials(user))?.password).not.toBe(turnPassword(secret, user))
   })
 
   test('disabled apps cannot mint', async () => {

@@ -38,7 +38,7 @@ describe('payments', () => {
       cookie,
       body: { url: NWC },
     })
-    expect(nwc.body.nwc).toMatchObject({
+    expect(nwc.body).toMatchObject({
       configured: true,
       walletPubkey: 'b'.repeat(64),
       relays: ['wss://wallet.example'],
@@ -49,7 +49,7 @@ describe('payments', () => {
       body: { name: 'Monthly', amountSats: 2100, durationDays: 30 },
     })
     expect(p.status).toBe(201)
-    expect(p.body.plan).toMatchObject({ id: 1, amountSats: 2100, active: true })
+    expect(p.body).toMatchObject({ id: 1, amountSats: 2100, active: true })
     expect(
       (
         await api(t.base, '/api/admin/payments/plans', {

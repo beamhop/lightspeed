@@ -13,6 +13,21 @@ export function resolveAdminDist(configured: string): string | null {
   return null
 }
 
+/**
+ * `distDir` exported by `@beamhop/relay-admin`, when the package is installed and built. The
+ * specifier is computed so neither tsc nor `bun build --compile` pull the SPA sources in.
+ */
+export async function adminDistFromPackage(): Promise<string | null> {
+  const spec = ['@beamhop', 'relay-admin'].join('/')
+  try {
+    const mod = (await import(spec)) as { distDir?: unknown }
+    const dir = typeof mod.distDir === 'string' ? mod.distDir : null
+    return dir && existsSync(join(dir, 'index.html')) ? dir : null
+  } catch {
+    return null
+  }
+}
+
 const PLACEHOLDER = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Beamhop relay admin</title>

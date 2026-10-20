@@ -118,7 +118,7 @@ export class FakeNostrRelay implements NostrRelay {
     if (p?.pubkeys?.deny?.includes(e.pubkey))
       return { ok: false, message: 'blocked: pubkey denied' }
     if (p?.kinds?.deny?.includes(e.kind)) return { ok: false, message: 'blocked: kind denied' }
-    if (p?.writeAllowed && !p.writeAllowed(e.pubkey))
+    if (p?.writeAllowed && !(await p.writeAllowed(e.pubkey, e)))
       return { ok: false, message: 'restricted: payment required' }
     if (!(e.kind >= 20000 && e.kind < 30000)) this.events.push({ e, realm })
     for (const s of this.sockets) {

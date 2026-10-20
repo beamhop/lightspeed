@@ -47,35 +47,40 @@ export interface Nip11Info {
   [key: string]: unknown
 }
 
+/** Token bucket: `rate` tokens per second, bucket size `burst` (engine shape). */
 export interface RateLimit {
-  /** Events (or messages) allowed per window. */
-  count: number
-  windowSec: number
+  rate: number
+  burst: number
 }
 
 export interface RetentionRule {
   kinds?: number[]
-  /** Maximum age in seconds; omitted = keep forever. */
-  maxAgeSec?: number
-  /** Maximum stored events for the kinds; omitted = unlimited. */
+  /** Delete matching events older than this many seconds. */
+  maxAgeSeconds?: number
+  /** Keep at most this many matching events per realm. */
   maxCount?: number
 }
 
 /**
- * Policy covers pubkey allow/deny, kind allow/deny, rate limits per IP/pubkey, max event size,
- * NIP-13 min PoW, auth-required kinds, retention per kind and the writeAllowed hook.
- * The exact field names are the relay's assumption of the engine contract (see README).
+ * Engine policy for one realm (null = public relay): pubkey allow/deny, kind allow/deny, rate limits
+ * per IP/pubkey, max event size, NIP-13 min PoW, auth-required kinds, retention per kind and the
+ * writeAllowed hook. Field names follow `@beamhop/nostr-relay`'s `Policy`.
  */
 export interface Policy {
   pubkeys?: { allow?: string[]; deny?: string[] }
   kinds?: { allow?: number[]; deny?: number[] }
-  rateLimits?: { perIp?: RateLimit; perPubkey?: RateLimit }
-  maxEventSize?: number
+  rateLimits?: { ip?: RateLimit; pubkey?: RateLimit; reqIp?: RateLimit }
+  maxEventBytes?: number
+  maxMessageBytes?: number
   minPow?: number
+  authRequired?: boolean
   authRequiredKinds?: number[]
   retention?: RetentionRule[]
-  /** Called for every write after the static rules; false rejects the event ("restricted:"). */
-  writeAllowed?(pubkey: string): boolean
+  /** Pubkeys allowed to call NIP-86 management for this realm. */
+  admins?: string[]
+  info?: Partial<Nip11Info>
+  /** When defined, a pubkey not on `pubkeys.allow` must make this return true to write. */
+  writeAllowed?(pubkey: string, event?: NostrEvent): boolean | Promise<boolean>
 }
 
 export interface PolicyProvider {
@@ -105,7 +110,15 @@ export interface NostrRelay {
   close(): void
   // Optional, non-contract extras the relay uses when present.
   deleteEvent?(id: string, realm?: string | null): boolean
-  subscriptions?(): unknown[]
+  count?(filters: Filter[], realm?: string | null): number
+  subscriptions?(): {
+    connId: number
+    realm: string | null
+    ip: string
+    subId: string
+    filters: Filter[]
+    authed?: string[]
+  }[]
 }
 
 export interface NostrRelayOptions {
@@ -113,6 +126,8 @@ export interface NostrRelayOptions {
   info: Nip11Info
   policy?: PolicyProvider
   auth?: { relayUrl: string }
+  /** Global NIP-86 admins (engine extension). */
+  admins?: string[]
 }
 
 export type NostrRelayFactory = (opts: NostrRelayOptions) => NostrRelay
@@ -143,6 +158,8 @@ export interface TurnQuota {
   maxAllocations?: number
   maxBps?: number
   allowed?: boolean
+  /** Accounting group for maxAllocations/maxBps (the relay uses the appId). */
+  group?: string
 }
 
 export interface TurnServerOptions {
@@ -151,8 +168,9 @@ export interface TurnServerOptions {
   host?: string
   externalIp?: string
   relayPorts: [number, number]
-  credentials(username: string): { password: string } | null
-  quota?(username: string): TurnQuota
+  credentials(username: string): { password: string } | null | Promise<{ password: string } | null>
+  quota?(username: string): TurnQuota | Promise<TurnQuota>
+  /** Byte deltas since the previous report, per allocation. */
   onUsage?(u: TurnUsage): void
 }
 

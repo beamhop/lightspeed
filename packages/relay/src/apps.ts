@@ -13,6 +13,9 @@ export interface AppRecord {
   turnMaxBps: number
   turnMonthlyBytes: number
   dataMonthlyBytes: number
+  description: string
+  blossomMaxBlobBytes: number
+  blossomAllowedMime: string[]
   disabled: boolean
   createdAt: number
   updatedAt: number
@@ -30,6 +33,9 @@ interface AppRow {
   turn_max_bps: number
   turn_monthly_bytes: number
   data_monthly_bytes: number
+  description: string
+  blossom_max_blob_bytes: number
+  blossom_allowed_mime: string
   disabled: number
   created_at: number
   updated_at: number
@@ -46,6 +52,9 @@ export const APP_EDITABLE = {
   turnMaxBps: 'turn_max_bps',
   turnMonthlyBytes: 'turn_monthly_bytes',
   dataMonthlyBytes: 'data_monthly_bytes',
+  description: 'description',
+  blossomMaxBlobBytes: 'blossom_max_blob_bytes',
+  blossomAllowedMime: 'blossom_allowed_mime',
   disabled: 'disabled',
 } as const
 
@@ -61,6 +70,9 @@ function fromRow(r: AppRow): AppRecord {
     turnMaxBps: r.turn_max_bps,
     turnMonthlyBytes: r.turn_monthly_bytes,
     dataMonthlyBytes: r.data_monthly_bytes,
+    description: r.description,
+    blossomMaxBlobBytes: r.blossom_max_blob_bytes,
+    blossomAllowedMime: JSON.parse(r.blossom_allowed_mime || '[]') as string[],
     disabled: !!r.disabled,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -144,12 +156,13 @@ export class AppStore {
         t,
       )
     this.invalidate(id)
-    const { name: _n, id: _i, ...rest } = input
+    const { name: _n, id: _i, ...rest } = input as Record<string, unknown>
     const app = Object.keys(rest).length ? this.update(id, rest) : (this.get(id) as AppRecord)
     return { app, apiKey }
   }
 
-  update(id: string, patch: Record<string, unknown>): AppRecord {
+  update(id: string, input: Record<string, unknown>): AppRecord {
+    const patch = normalizeAppPatch(input)
     if (!this.get(id)) throw new HttpError(404, 'not-found', `app ${id} not found`)
     const sets: string[] = []
     const args: (string | number)[] = []
@@ -160,6 +173,12 @@ export class AppStore {
         const s = String(v ?? '').trim()
         if (!s) throw new HttpError(400, 'invalid', `${k} must be a non-empty string`)
         args.push(s)
+      } else if (k === 'description') {
+        args.push(String(v ?? '').slice(0, 2000))
+      } else if (k === 'blossomAllowedMime') {
+        if (!Array.isArray(v) || !v.every((x) => typeof x === 'string'))
+          throw new HttpError(400, 'invalid', 'allowedMime must be a string list')
+        args.push(JSON.stringify(v))
       } else if (k === 'disabled') {
         args.push(v ? 1 : 0)
       } else {
@@ -222,8 +241,47 @@ export function slugify(s: string): string {
     .slice(0, 48)
 }
 
-/** Public view for the admin API (no secrets except the TURN secret admins need for self-minting). */
+/**
+ * Accept both the relay's flat field names and the admin SPA's shape
+ * (`enabled`, `quotas: { maxAllocations, maxMbps, gbPerMonth, maxBlobBytes, maxStorageBytes, allowedMime }`).
+ */
+export function normalizeAppPatch(input: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...input }
+  delete out.enabled
+  delete out.quotas
+  if (input.enabled !== undefined) out.disabled = !input.enabled
+  const q = input.quotas as Record<string, unknown> | undefined
+  if (q && typeof q === 'object') {
+    const num = (v: unknown) => (v === null || v === undefined || v === '' ? 0 : Number(v))
+    if ('maxAllocations' in q) out.turnMaxAllocations = num(q.maxAllocations)
+    if ('maxMbps' in q) out.turnMaxBps = Math.round(num(q.maxMbps) * 1e6)
+    if ('gbPerMonth' in q) out.turnMonthlyBytes = Math.round(num(q.gbPerMonth) * 1e9)
+    if ('maxBlobBytes' in q) out.blossomMaxBlobBytes = num(q.maxBlobBytes)
+    if ('maxStorageBytes' in q) out.blossomQuotaBytes = num(q.maxStorageBytes)
+    if ('allowedMime' in q) out.blossomAllowedMime = q.allowedMime ?? []
+  }
+  return out
+}
+
+/**
+ * Admin API view: the SPA's `App` shape (enabled, quotas, masked secret hints) plus the relay's
+ * flat fields. The TURN secret is only included right after creation or rotation.
+ */
 export function appView(app: AppRecord, opts: { secret?: boolean } = {}) {
   const { turnSecret, ...rest } = app
-  return opts.secret ? { ...rest, turnSecret } : rest
+  const view = {
+    ...rest,
+    enabled: !app.disabled,
+    quotas: {
+      maxAllocations: app.turnMaxAllocations,
+      maxMbps: app.turnMaxBps / 1e6,
+      gbPerMonth: app.turnMonthlyBytes / 1e9,
+      maxBlobBytes: app.blossomMaxBlobBytes,
+      maxStorageBytes: app.blossomQuotaBytes,
+      allowedMime: app.blossomAllowedMime,
+    },
+    turnSecretHint: `…${turnSecret.slice(-4)}`,
+    apiKeyHint: `${app.apiKeyPrefix}…`,
+  }
+  return opts.secret ? { ...view, turnSecret } : view
 }

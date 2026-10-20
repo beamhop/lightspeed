@@ -113,6 +113,14 @@ export const MIGRATIONS: string[] = [
   CREATE INDEX blob_owners_pubkey ON blob_owners(pubkey);
   CREATE TABLE alert_acks (id TEXT PRIMARY KEY, acked_at INTEGER NOT NULL, acked_by TEXT NOT NULL);
   `,
+  // v2: fields used by the admin SPA (roles, app description, per-app Blossom limits)
+  `
+  ALTER TABLE admins ADD COLUMN role TEXT NOT NULL DEFAULT 'admin';
+  ALTER TABLE admins ADD COLUMN last_login_at INTEGER;
+  ALTER TABLE apps ADD COLUMN description TEXT NOT NULL DEFAULT '';
+  ALTER TABLE apps ADD COLUMN blossom_max_blob_bytes INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE apps ADD COLUMN blossom_allowed_mime TEXT NOT NULL DEFAULT '[]';
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length
