@@ -32,6 +32,8 @@ before depending on them.
 | `CHUNK_SIZE` | `16384` | Maximum payload bytes per data frame for chunked transfers |
 | `FRAME_HEADER` | `6` | Data frame header size in bytes |
 | `TELEMETRY_CHANNEL` | `__beamhop/telemetry` | Reserved channel label for Studio telemetry |
+| `KIND_SESSION_ATTESTATION` | `28100` | Nostr kind a user key signs to vouch for a session pubkey |
+| `KIND_NIP46` | `24133` | NIP-46 remote signer RPC kind |
 
 ## 2. Identities and keys
 
@@ -47,12 +49,13 @@ type Attestation =
 ```
 
 - `anonymous`: no claim. The session key is ephemeral (optionally persisted on the device).
-- `nostr`: the long-lived Nostr key `pubkey` vouches for the session key. **(draft)** `sig` is a
-  BIP-340 signature by `pubkey` over `sha256(utf8("beamhop/v1 attest:") ‖ utf8(sessionPubkeyHex))`.
-  With NIP-07 or NIP-46 signers, which only sign events, the signer instead signs a kind 27235
-  event whose content is the session pubkey; `sig` is then that event's signature and verifiers
-  rebuild the event id. A peer MAY use its Nostr key directly as the session key, in which case
-  the attestation is implicit.
+- `nostr`: the long-lived Nostr key `pubkey` vouches for the session key by signing a NIP-01 event
+  that is never published:
+  `{ kind: 28100 (KIND_SESSION_ATTESTATION), pubkey, created_at, tags: [["p", sessionPubkey]], content: "beamhop-session" }`.
+  `sig` is the BIP-340 signature over that event's id; the attestation carries
+  `{ type: 'nostr', pubkey, sig, created_at }` (`created_at` 0 when absent). This works with NIP-07
+  and NIP-46 signers, which only sign events. A peer MAY use its Nostr key directly as the session
+  key, in which case the attestation is implicit.
 - `oidc`: see section 8.
 
 Room policy decides which attestations admit a peer (for example "any", "nostr pubkey in list",
