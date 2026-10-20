@@ -1,0 +1,35 @@
+{
+  "root": false,
+  "extends": "//",
+  "css": { "parser": { "tailwindDirectives": true } },
+  "overrides": [
+    {
+      "includes": ["src/styles.css"],
+      "linter": { "rules": { "complexity": { "noImportantStyles": "off" } } }
+    },
+    {
+      "includes": ["src/mock/**"],
+      "linter": {
+        "rules": {
+          "suspicious": { "noAssignInExpressions": "off", "noExplicitAny": "off" }
+        }
+      }
+    },
+    {
+      "includes": [
+        "src/components/ui.tsx",
+        "src/components/Layout.tsx",
+        "src/components/Dialogs.tsx"
+      ],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "noStaticElementInteractions": "off",
+            "useKeyWithClickEvents": "off",
+            "noLabelWithoutControl": "off"
+          }
+        }
+      }
+    }
+  ]
+}
