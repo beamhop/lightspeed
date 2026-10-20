@@ -44,10 +44,16 @@
     "packages/relay": {
       "name": "@beamhop/relay",
       "version": "0.0.0",
+      "bin": {
+        "beamhop-relay": "./src/bin.ts",
+      },
       "dependencies": {
         "@beamhop/nostr-relay": "workspace:*",
         "@beamhop/p2p": "workspace:*",
         "@beamhop/turn": "workspace:*",
+        "@noble/curves": "^1.6.0",
+        "@noble/hashes": "^1.5.0",
+        "qrcode-generator": "^1.4.4",
       },
     },
     "packages/relay-admin": {
@@ -131,6 +137,8 @@
     "beamhop": ["beamhop@workspace:packages/cli"],
 
     "bun-types": ["bun-types@1.4.3", "", { "dependencies": { "@types/node": "*", "undici-types": "*" } }, "sha512-tinRJNGOmUN+tEAsn2y2e942n9JHRHR42iUYzDH75NmhJqVBokGSQkkfSFdNWwsANIdrK6ACH9t01M452YyTwg=="],
+
+    "qrcode-generator": ["qrcode-generator@1.5.2", "", {}, "sha512-pItrW0Z9HnDBnFmgiNrY1uxRdri32Uh9EjNYLPVC2zZ3ZRIIEqBoDgm4DkvDwNNDHTK7FNkmr8zAa77BYc9xNw=="],
 
     "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
