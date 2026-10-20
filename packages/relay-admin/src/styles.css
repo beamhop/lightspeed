@@ -1,0 +1,109 @@
+@import "tailwindcss";
+@import "@beamhop/ui/tokens.css";
+@import "uplot/dist/uPlot.min.css";
+
+/* Light theme override (dark is the default). Toggled from Settings. */
+html.light {
+  --bh-midnight: #f5f6fb;
+  --bh-surface: #ffffff;
+  --bh-surface-raised: #eef0f8;
+  --bh-border: #d5d9ea;
+  --bh-text: #141829;
+  --bh-text-muted: #5b628a;
+  --bh-teal: #0f9f8c;
+  --bh-violet: #6b5bea;
+}
+
+@theme inline {
+  --color-midnight: var(--bh-midnight);
+  --color-surface: var(--bh-surface);
+  --color-raised: var(--bh-surface-raised);
+  --color-line: var(--bh-border);
+  --color-ink: var(--bh-text);
+  --color-muted: var(--bh-text-muted);
+  --color-teal: var(--bh-teal);
+  --color-violet: var(--bh-violet);
+  --color-ok: var(--bh-success);
+  --color-warn: var(--bh-warning);
+  --color-danger: var(--bh-danger);
+  --font-sans: var(--bh-font-sans);
+  --font-mono: var(--bh-font-mono);
+  --radius-sm: var(--bh-radius-sm);
+  --radius-md: var(--bh-radius-md);
+  --radius-lg: var(--bh-radius-lg);
+}
+
+html,
+body {
+  background: var(--bh-midnight);
+  color: var(--bh-text);
+  font-family: var(--bh-font-sans);
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+:focus-visible {
+  outline: 2px solid var(--bh-teal);
+  outline-offset: 2px;
+}
+
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
+}
+
+/* uPlot legend/axes in the palette */
+.uplot,
+.u-legend {
+  font-family: var(--bh-font-sans);
+  color: var(--bh-text-muted);
+  font-size: 11px;
+}
+.u-legend .u-marker {
+  border-radius: 999px;
+}
+
+@keyframes bh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes bh-hop {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+@keyframes bh-blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  95% {
+    transform: scaleY(0.1);
+  }
+}
+@keyframes bh-shake {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  25% {
+    transform: rotate(-4deg);
+  }
+  75% {
+    transform: rotate(4deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -7,13 +7,38 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./api": "./src/api.ts",
+    "./dist/*": "./dist/*"
   },
+  "files": [
+    "src",
+    "dist",
+    "index.html",
+    "vite.config.ts"
+  ],
   "scripts": {
+    "dev": "vite",
+    "dev:mock": "VITE_MOCK=1 vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "preview:mock": "VITE_MOCK=1 vite build --outDir dist-mock && vite preview --outDir dist-mock",
     "test": "bun test",
-    "build": "bun build ./src/index.ts --outdir dist --target browser && tsc --emitDeclarationOnly --outDir dist"
+    "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
-    "@beamhop/ui": "workspace:*"
+    "@beamhop/ui": "workspace:*",
+    "@noble/ciphers": "^1.0.0",
+    "@noble/curves": "^1.6.0",
+    "@noble/hashes": "^1.5.0",
+    "@preact/signals": "^2.11.3",
+    "preact": "^11.0.1",
+    "uplot": "^1.6.32"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^21.0.4",
+    "@tailwindcss/vite": "^4.3.3",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.3.4"
   }
 }
