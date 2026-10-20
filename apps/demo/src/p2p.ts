@@ -1,6 +1,5 @@
 // The only place the demo touches a P2P implementation. Screens talk to `DemoRoom`; this module picks
-// the real @beamhop/p2p stack (Nostr signaling + WebRTC) or the BroadcastChannel fallback (`?local=1`,
-// or automatically when the library build is not available yet).
+// the real @beamhop/p2p stack (Nostr signaling + WebRTC) or the BroadcastChannel fallback (`?local=1`).
 import type { DemoConfig } from './config'
 
 export type Hex = string
@@ -77,7 +76,7 @@ export interface DemoRoom {
   readonly mode: 'beamhop' | 'local'
   readonly roomId: string
   readonly self: DemoPeer
-  /** Why the room fell back to local mode, if it did. */
+  /** Informational banner shown above the room (e.g. why it runs in a degraded mode). */
   readonly notice?: string
   peers(): DemoPeer[]
   onPeers(cb: (peers: DemoPeer[]) => void): Unsubscribe
@@ -99,26 +98,11 @@ export interface DemoRoom {
   leave(): Promise<void>
 }
 
-export class LibraryUnavailableError extends Error {
-  constructor(reason: string) {
-    super(`@beamhop/p2p is not available in this build: ${reason}`)
-    this.name = 'LibraryUnavailableError'
-  }
-}
-
 export async function joinDemoRoom(cfg: DemoConfig): Promise<DemoRoom> {
-  if (!cfg.local) {
-    try {
-      const { joinBeamhopRoom } = await import('./net/beamhop')
-      return await joinBeamhopRoom(cfg)
-    } catch (err) {
-      if (!(err instanceof LibraryUnavailableError)) throw err
-      const { joinLocalRoom } = await import('./net/local')
-      return joinLocalRoom(cfg, {
-        notice: `${err.message}. Running in local mode: open this room in another tab of this browser.`,
-      })
-    }
+  if (cfg.local) {
+    const { joinLocalRoom } = await import('./net/local')
+    return joinLocalRoom(cfg)
   }
-  const { joinLocalRoom } = await import('./net/local')
-  return joinLocalRoom(cfg)
+  const { joinBeamhopRoom } = await import('./net/beamhop')
+  return joinBeamhopRoom(cfg)
 }

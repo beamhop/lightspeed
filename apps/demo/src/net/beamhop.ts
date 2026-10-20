@@ -1,146 +1,45 @@
-// DemoRoom backed by the real stack: @beamhop/p2p rooms, Nostr signaling over three public relays and
-// WebRTC with public STUN. Written against the API named in docs/PLAN.md (0.x, subject to change).
-// The library modules are loaded dynamically and checked at runtime; if they are not built yet this
-// throws LibraryUnavailableError and p2p.ts falls back to the BroadcastChannel implementation.
-import { APP_ID, colorFor, type DemoConfig } from '../config'
+// DemoRoom backed by the real stack: an @beamhop/p2p room with Nostr signaling over public relays
+// (@beamhop/signaling-nostr) and WebRTC data channels with public STUN (@beamhop/p2p/webrtc). With
+// "use your own relay" the app realm is added for signaling, TURN credentials are fetched and the
+// relay data path is appended to the transport ladder.
+//
+// Calls use a separate RTCPeerConnection per peer for media, negotiated over the room's reliable
+// `call` action (the room API carries data only).
 import {
-  type ChatMessage,
-  type CursorUpdate,
-  type DemoPeer,
-  type DemoRoom,
-  type FileProgress,
+  action,
+  anonymous,
+  any,
+  createRoom,
+  defineProtocol,
   type Hex,
-  LibraryUnavailableError,
-  type PathKind,
-  type PeerTelemetry,
-  type SignalLogEntry,
-  type TelemetrySnapshot,
-  type Unsubscribe,
+  type Identity,
+  type IdentityProvider,
+  nostr,
+  type Peer,
+  type RoomTimeouts,
+  relayTransport,
+  type SignalingAdapter,
+  type SignalingFactory,
+  type Transport,
+} from '@beamhop/p2p'
+import { webrtcTransport } from '@beamhop/p2p/webrtc'
+import { nostrSignaling } from '@beamhop/signaling-nostr'
+import { APP_ID, colorFor, type DemoConfig } from '../config'
+import type {
+  ChatMessage,
+  DemoPeer,
+  DemoRoom,
+  FileProgress,
+  PathKind,
+  PeerTelemetry,
+  SignalLogEntry,
+  TelemetrySnapshot,
+  Unsubscribe,
 } from '../p2p'
 import { Emitter, messageId, pushCapped } from './emitter'
-
-// ---------------------------------------------------------------- intended library surface
-
-type Reliability =
-  | { mode: 'reliable' }
-  | { mode: 'unordered' }
-  | { mode: 'unreliable'; maxRetransmits: number }
-
-interface LibPeer {
-  pubkey: Hex
-  meta?: Record<string, unknown>
-}
-
-interface LibAction<T> {
-  send(data: T, to?: Hex | Hex[]): Promise<void> | void
-  on(cb: (data: T, from: LibPeer) => void): Unsubscribe
-}
-
-interface LibStreamSendOptions {
-  onProgress?: (p: { sent: number; total: number }) => void
-}
-
-interface LibStreamChannel {
-  send(
-    to: Hex,
-    stream: ReadableStream<Uint8Array>,
-    meta: Record<string, unknown>,
-    opts?: LibStreamSendOptions,
-  ): Promise<void>
-  on(
-    cb: (
-      incoming: {
-        meta: Record<string, unknown>
-        stream: ReadableStream<Uint8Array>
-        total?: number
-      },
-      from: LibPeer,
-    ) => void,
-  ): Unsubscribe
-}
-
-interface LibTelemetryEvent {
-  type: string
-  at: number
-  peer?: Hex
-  [k: string]: unknown
-}
-
-interface LibRoom {
-  readonly self: LibPeer
-  peers(): LibPeer[]
-  onPeerJoin(cb: (p: LibPeer) => void): Unsubscribe
-  onPeerLeave(cb: (p: LibPeer) => void): Unsubscribe
-  action<T>(name: string): LibAction<T>
-  stream(name: string): LibStreamChannel
-  addStream?(stream: MediaStream, to?: Hex): void
-  removeStream?(stream: MediaStream, to?: Hex): void
-  onPeerStream?(cb: (stream: MediaStream, from: LibPeer) => void): Unsubscribe
-  telemetry: { subscribe(cb: (e: LibTelemetryEvent) => void): Unsubscribe }
-  signalingStatus?(): {
-    url: string
-    state: 'connecting' | 'open' | 'closed' | 'error'
-    error?: string
-  }[]
-  leave(): Promise<void>
-}
-
-interface P2PModule {
-  createRoom(opts: Record<string, unknown>): Promise<LibRoom> | LibRoom
-  anonymous(opts?: Record<string, unknown>): unknown
-  nostr?(opts?: Record<string, unknown>): unknown
-  defineProtocol(def: Record<string, unknown>): unknown
-  relayTransport?(opts: Record<string, unknown>): unknown
-}
-
-interface WebrtcModule {
-  webrtcTransport(opts: { iceServers: RTCIceServer[] }): unknown
-}
-
-interface NostrSignalingModule {
-  nostrSignaling(opts: { relays: string[] }): unknown
-}
-
-async function loadLibrary(): Promise<{
-  p2p: P2PModule
-  webrtc: WebrtcModule
-  signaling: NostrSignalingModule
-}> {
-  let mods: unknown[]
-  try {
-    mods = await Promise.all([
-      import('@beamhop/p2p'),
-      // @ts-expect-error -- the webrtc entry point may not exist yet; vite.config.ts stubs it when missing.
-      import('@beamhop/p2p/webrtc'),
-      import('@beamhop/signaling-nostr'),
-    ])
-  } catch (err) {
-    throw new LibraryUnavailableError(err instanceof Error ? err.message : String(err))
-  }
-  const [p2p, webrtc, signaling] = mods as [P2PModule, WebrtcModule, NostrSignalingModule]
-  const missing = [
-    typeof p2p.createRoom !== 'function' && 'createRoom',
-    typeof p2p.anonymous !== 'function' && 'anonymous',
-    typeof p2p.defineProtocol !== 'function' && 'defineProtocol',
-    typeof webrtc.webrtcTransport !== 'function' && 'webrtcTransport',
-    typeof signaling.nostrSignaling !== 'function' && 'nostrSignaling',
-  ].filter(Boolean)
-  if (missing.length) throw new LibraryUnavailableError(`missing ${missing.join(', ')}`)
-  return { p2p, webrtc, signaling }
-}
+import { describeCandidatePath, selectedCandidateType } from './rtc'
 
 // ---------------------------------------------------------------- demo protocol
-
-const UNRELIABLE: Reliability = { mode: 'unreliable', maxRetransmits: 0 }
-const RELIABLE: Reliability = { mode: 'reliable' }
-
-/** The demo's typed protocol: one reliable chat action, one unreliable cursor action, one file stream. */
-export const demoProtocolDefinition = {
-  chat: { reliability: RELIABLE },
-  cursor: { reliability: UNRELIABLE, priority: 'low' },
-  file: { reliability: RELIABLE, stream: true },
-  call: { reliability: RELIABLE },
-} as const
 
 interface ChatPayload {
   id: string
@@ -150,6 +49,30 @@ interface ChatPayload {
 interface CursorPayload {
   x: number
   y: number
+}
+type RtcSignal =
+  | { type: 'offer' | 'answer'; sdp: string }
+  | { type: 'candidate'; candidate: RTCIceCandidateInit | null }
+type CallPayload = { t: 'state'; active: boolean } | { t: 'rtc'; signal: RtcSignal }
+
+/** The demo's typed protocol: reliable chat, unreliable low-priority cursors, call negotiation. */
+export const demoProtocol = defineProtocol({
+  chat: action(any<ChatPayload>()),
+  cursor: action(any<CursorPayload>(), { reliability: 'unreliable', priority: 'low' }),
+  call: action(any<CallPayload>(), { priority: 'high' }),
+})
+
+/**
+ * Test/embedding hooks: replace signaling, transports and identity (e.g. memorySignaling +
+ * memoryTransport in bun tests). Not part of the UI.
+ */
+export interface BeamhopInternals {
+  signaling?: SignalingFactory
+  transports?: Transport[]
+  identity?: IdentityProvider | Identity
+  timeouts?: RoomTimeouts
+  /** Telemetry snapshot interval (default 1000 ms). */
+  tickMs?: number
 }
 
 async function turnServersFor(own: NonNullable<DemoConfig['ownRelay']>): Promise<RTCIceServer[]> {
@@ -163,51 +86,72 @@ async function turnServersFor(own: NonNullable<DemoConfig['ownRelay']>): Promise
   return body.iceServers
 }
 
-function pathOf(p: unknown): PathKind {
-  return p === 'direct' || p === 'turn' || p === 'relay' || p === 'memory' ? p : 'unknown'
+function demoState(p: Peer): DemoPeer['state'] {
+  return p.state === 'away' ? 'away' : 'connected'
 }
 
-export async function joinBeamhopRoom(cfg: DemoConfig): Promise<DemoRoom> {
-  const { p2p, webrtc, signaling } = await loadLibrary()
+function nameOf(p: Peer | undefined, id: Hex): string {
+  const n = p?.meta.name
+  return typeof n === 'string' && n ? n : id.slice(0, 8)
+}
 
+export async function joinBeamhopRoom(
+  cfg: DemoConfig,
+  internals: BeamhopInternals = {},
+): Promise<DemoRoom> {
   const log: SignalLogEntry[] = []
-  const tel = new Map<Hex, PeerTelemetry>()
   const relays = [...cfg.relays]
   let iceServers = [...cfg.iceServers]
-  const transports: unknown[] = []
-  if (cfg.ownRelay) {
-    const appRealm = `${cfg.ownRelay.url.replace(/\/$/, '')}/a/${cfg.ownRelay.appId}`
-    relays.unshift(appRealm)
-    try {
-      iceServers = [...iceServers, ...(await turnServersFor(cfg.ownRelay))]
-      pushCapped(log, { at: Date.now(), direction: 'in', kind: 'turn-credentials' })
-    } catch (err) {
-      pushCapped(log, {
-        at: Date.now(),
-        direction: 'in',
-        kind: `turn-credentials failed: ${err instanceof Error ? err.message : err}`,
-      })
+  let transports: Transport[]
+  let appId = APP_ID
+
+  if (internals.transports) {
+    transports = internals.transports
+  } else {
+    const ladder: Transport[] = []
+    if (cfg.ownRelay) {
+      appId = cfg.ownRelay.appId
+      const appRealm = `${cfg.ownRelay.url.replace(/\/$/, '')}/a/${cfg.ownRelay.appId}`
+      relays.unshift(appRealm)
+      try {
+        iceServers = [...iceServers, ...(await turnServersFor(cfg.ownRelay))]
+        pushCapped(log, { at: Date.now(), direction: 'in', kind: 'turn-credentials' })
+      } catch (err) {
+        pushCapped(log, {
+          at: Date.now(),
+          direction: 'in',
+          kind: `turn-credentials failed: ${err instanceof Error ? err.message : err}`,
+        })
+      }
+      ladder.push(relayTransport({ url: `${appRealm}/data`, appId }))
     }
-    if (p2p.relayTransport) transports.push(p2p.relayTransport({ url: `${appRealm}/data` }))
+    ladder.unshift(webrtcTransport({ iceServers }))
+    transports = ladder
   }
-  transports.unshift(webrtc.webrtcTransport({ iceServers }))
+
+  // Keep a handle on the signaling adapter so the lobby can show per-relay status.
+  let adapter: SignalingAdapter | undefined
+  const baseSignaling = internals.signaling ?? nostrSignaling({ relays })
+  const signaling: SignalingFactory = (ctx) => {
+    adapter = baseSignaling(ctx)
+    return adapter
+  }
 
   const identity =
-    cfg.identity === 'nostr' && p2p.nostr
-      ? p2p.nostr({ nip07: true })
-      : p2p.anonymous({ persist: true })
+    internals.identity ?? (cfg.identity === 'nostr' ? nostr() : anonymous({ persist: true }))
 
-  const room = await p2p.createRoom({
-    appId: cfg.ownRelay?.appId ?? APP_ID,
+  const room = await createRoom({
+    appId,
     roomId: cfg.roomId,
     ...(cfg.password ? { password: cfg.password } : {}),
     identity,
-    signaling: signaling.nostrSignaling({ relays }),
+    signaling,
     transports,
+    iceServers,
     topology: 'mesh',
-    protocol: p2p.defineProtocol(demoProtocolDefinition),
+    protocol: demoProtocol,
     meta: { name: cfg.name },
-    telemetry: true,
+    ...(internals.timeouts ? { timeouts: internals.timeouts } : {}),
   })
 
   const selfId = room.self.pubkey
@@ -218,8 +162,9 @@ export async function joinBeamhopRoom(cfg: DemoConfig): Promise<DemoRoom> {
     self: true,
     state: 'connected',
   }
-  const names = new Map<Hex, string>()
+  const tel = new Map<Hex, PeerTelemetry>()
   const peersEv = new Emitter<DemoPeer[]>()
+  const chatEv = new Emitter<ChatMessage>()
   const fileEv = new Emitter<FileProgress>()
   const telemetryEv = new Emitter<TelemetrySnapshot>()
   const streamEv = new Emitter<{ peer: Hex; stream: MediaStream | null }>()
@@ -236,134 +181,234 @@ export async function joinBeamhopRoom(cfg: DemoConfig): Promise<DemoRoom> {
 
   const peerList = (): DemoPeer[] => [
     self,
-    ...room.peers().map((p) => {
-      const t = tel.get(p.pubkey)
-      const name =
-        (typeof p.meta?.name === 'string' ? p.meta.name : undefined) ??
-        names.get(p.pubkey) ??
-        p.pubkey.slice(0, 8)
-      return {
-        id: p.pubkey,
-        name,
-        color: colorFor(p.pubkey),
-        path: t?.path ?? 'unknown',
-        ...(t?.rttMs !== undefined ? { rttMs: t.rttMs } : {}),
-        state: (t?.state === 'connected' ? 'connected' : 'connecting') as DemoPeer['state'],
-      }
-    }),
+    ...room.peers.map((p) => ({
+      id: p.pubkey,
+      name: nameOf(p, p.pubkey),
+      color: colorFor(p.pubkey),
+      path: (p.path ?? 'unknown') as PathKind,
+      ...(p.rttMs !== undefined ? { rttMs: Math.round(p.rttMs) } : {}),
+      state: demoState(p),
+    })),
   ]
 
-  const snapshot = (): TelemetrySnapshot => ({
-    relays:
-      room.signalingStatus?.() ?? relays.map((url) => ({ url, state: 'connecting' as const })),
-    peers: Object.fromEntries([...tel].map(([k, v]) => [k, structuredClone(v)])),
-    signaling: [...log],
-  })
+  const snapshot = (): TelemetrySnapshot => {
+    for (const p of room.peers) {
+      const t = peerTel(p.pubkey)
+      t.state = p.state
+      if (p.path) t.path = p.path
+      if (p.rttMs !== undefined) t.rttMs = Math.round(p.rttMs)
+    }
+    return {
+      relays: adapter?.status?.() ?? relays.map((url) => ({ url, state: 'connecting' as const })),
+      peers: Object.fromEntries([...tel].map(([k, v]) => [k, structuredClone(v)])),
+      signaling: [...log],
+    }
+  }
 
-  subs.push(room.onPeerJoin(() => peersEv.emit(peerList())))
-  subs.push(
-    room.onPeerLeave((p) => {
-      tel.delete(p.pubkey)
-      streamEv.emit({ peer: p.pubkey, stream: null })
-      peersEv.emit(peerList())
-    }),
-  )
   subs.push(
     room.telemetry.subscribe((e) => {
-      const peer = e.peer
       switch (e.type) {
         case 'signal':
           pushCapped(log, {
             at: e.at,
-            direction: e.direction === 'in' ? 'in' : 'out',
+            direction: e.direction,
             kind: String(e.kind),
-            ...(peer ? { peer } : {}),
+            ...(e.peer ? { peer: e.peer } : {}),
           })
           break
-        case 'connection':
-          if (peer) {
-            const t = peerTel(peer)
-            t.state = String(e.state)
-            if (e.path) t.path = pathOf(e.path)
-          }
+        case 'connection': {
+          const t = peerTel(e.peer)
+          t.state = e.state
+          if (e.path) t.path = e.path
           break
-        case 'path':
-          if (peer) {
-            const t = peerTel(peer)
-            t.path = pathOf(e.path)
-            if (typeof e.candidatePair === 'string') t.candidatePair = e.candidatePair
-          }
+        }
+        case 'path': {
+          const t = peerTel(e.peer)
+          t.path = e.path
+          if (e.candidatePair) t.candidatePair = e.candidatePair
           break
+        }
         case 'rtt':
-          if (peer && typeof e.ms === 'number') peerTel(peer).rttMs = Math.round(e.ms)
+          peerTel(e.peer).rttMs = Math.round(e.ms)
           break
         case 'bytes':
-          if (peer && typeof e.channel === 'string') {
-            peerTel(peer).bytes[e.channel] = {
-              sent: Number(e.sent) || 0,
-              received: Number(e.received) || 0,
-            }
-          }
+          peerTel(e.peer).bytes[e.channel] = { sent: e.sent, received: e.received }
           break
       }
     }),
   )
+
+  const emitPeers = () => peersEv.emit(peerList())
+  subs.push(
+    room.onPeerJoin((p) => {
+      emitPeers()
+      if (localStream) void sendCall(p.pubkey, { t: 'state', active: true })
+    }),
+  )
+  subs.push(room.onPeerUpdate(emitPeers))
+  subs.push(
+    room.onPeerLeave((p) => {
+      tel.delete(p.pubkey)
+      closePc(p.pubkey)
+      emitPeers()
+    }),
+  )
+
   const timer = setInterval(() => {
     telemetryEv.emit(snapshot())
-    peersEv.emit(peerList())
-  }, 1000)
+    emitPeers()
+    void refreshCallPaths()
+  }, internals.tickMs ?? 1000)
 
-  const chat = room.action<ChatPayload>('chat')
-  const cursor = room.action<CursorPayload>('cursor')
-  const files = room.stream('file')
-  const chatEv = new Emitter<ChatMessage>()
+  // ------------------------------------------------------------- chat, cursors
+
+  const chat = room.action('chat')
+  const cursor = room.action('cursor')
   subs.push(
-    chat.on((data, from) => {
-      const name = typeof from.meta?.name === 'string' ? from.meta.name : from.pubkey.slice(0, 8)
-      names.set(from.pubkey, name)
-      chatEv.emit({ id: data.id, from: from.pubkey, name, text: data.text, at: data.at })
+    chat.onMessage((data, from) => {
+      chatEv.emit({
+        id: data.id,
+        from,
+        name: nameOf(room.peer(from), from),
+        text: data.text,
+        at: data.at,
+      })
     }),
   )
 
+  // ------------------------------------------------------------- files
+
   subs.push(
-    files.on(async (incoming, from) => {
-      const id = String(incoming.meta.id ?? messageId())
-      const name = String(incoming.meta.name ?? 'file')
-      const mime = String(incoming.meta.mime ?? 'application/octet-stream')
-      const total = Number(incoming.meta.size ?? incoming.total ?? 0)
-      const parts: Uint8Array[] = []
-      let received = 0
+    room.onFile((f) => {
       const base = {
-        transferId: id,
-        peer: from.pubkey,
+        transferId: f.id,
+        peer: f.from,
         direction: 'in' as const,
-        name,
-        mime,
-        total,
+        name: f.name,
+        mime: f.mime,
+        total: f.size ?? 0,
       }
       fileEv.emit({ ...base, sent: 0, done: false })
-      try {
-        const reader = incoming.stream.getReader()
-        for (;;) {
-          const { done, value } = await reader.read()
-          if (done) break
-          parts.push(value)
-          received += value.byteLength
-          fileEv.emit({ ...base, sent: received, done: false })
+      f.onProgress((received, total) => {
+        fileEv.emit({ ...base, total: total ?? received, sent: received, done: false })
+      })
+      f.bytes().then(
+        (bytes) => {
+          const blob = new Blob([bytes as BlobPart], { type: f.mime })
+          fileEv.emit({ ...base, total: f.size ?? blob.size, sent: blob.size, done: true, blob })
+        },
+        (err) => fileEv.emit({ ...base, sent: f.received, done: true, error: String(err) }),
+      )
+    }),
+  )
+
+  // ------------------------------------------------------------- calls
+
+  const call = room.action('call')
+  let localStream: MediaStream | null = null
+  const inCall = new Set<Hex>()
+  const pcs = new Map<Hex, RTCPeerConnection>()
+  const remoteStreams = new Map<Hex, MediaStream>()
+  const hasRtc = () => typeof RTCPeerConnection !== 'undefined'
+
+  function sendCall(to: Hex, payload: CallPayload): Promise<void> {
+    return call.send(payload, { to }).catch(() => {})
+  }
+
+  function closePc(id: Hex) {
+    const pc = pcs.get(id)
+    if (pc) {
+      pc.close()
+      pcs.delete(id)
+    }
+    if (remoteStreams.delete(id)) streamEv.emit({ peer: id, stream: null })
+  }
+
+  function newPc(id: Hex): RTCPeerConnection {
+    const pc = new RTCPeerConnection({ iceServers })
+    pcs.set(id, pc)
+    pc.onicecandidate = (e) =>
+      void sendCall(id, { t: 'rtc', signal: { type: 'candidate', candidate: e.candidate } })
+    pc.ontrack = (e) => {
+      let s = remoteStreams.get(id)
+      if (!s) {
+        s = new MediaStream()
+        remoteStreams.set(id, s)
+      }
+      s.addTrack(e.track)
+      streamEv.emit({ peer: id, stream: s })
+    }
+    return pc
+  }
+
+  async function attachLocalTracks(pc: RTCPeerConnection) {
+    for (const t of pc.getTransceivers()) {
+      const kind = t.receiver.track?.kind
+      const track = localStream?.getTracks().find((x) => x.kind === kind) ?? null
+      await t.sender.replaceTrack(track)
+    }
+  }
+
+  async function ensurePc(id: Hex) {
+    if (!hasRtc() || pcs.has(id)) return
+    // Deterministic initiator, as in the library: the lower pubkey creates the offer.
+    if (selfId > id) return
+    const pc = newPc(id)
+    pc.addTransceiver('audio', { direction: 'sendrecv' })
+    pc.addTransceiver('video', { direction: 'sendrecv' })
+    await attachLocalTracks(pc)
+    const offer = await pc.createOffer()
+    await pc.setLocalDescription(offer)
+    await sendCall(id, { t: 'rtc', signal: { type: 'offer', sdp: offer.sdp ?? '' } })
+  }
+
+  async function onRtc(from: Hex, signal: RtcSignal) {
+    if (!hasRtc()) return
+    if (signal.type === 'offer') {
+      closePc(from)
+      const pc = newPc(from)
+      await pc.setRemoteDescription({ type: 'offer', sdp: signal.sdp })
+      for (const t of pc.getTransceivers()) t.direction = 'sendrecv'
+      await attachLocalTracks(pc)
+      const answer = await pc.createAnswer()
+      await pc.setLocalDescription(answer)
+      await sendCall(from, { t: 'rtc', signal: { type: 'answer', sdp: answer.sdp ?? '' } })
+    } else if (signal.type === 'answer') {
+      await pcs.get(from)?.setRemoteDescription({ type: 'answer', sdp: signal.sdp })
+    } else if (signal.type === 'candidate') {
+      const pc = pcs.get(from)
+      if (pc && signal.candidate) await pc.addIceCandidate(signal.candidate).catch(() => {})
+    }
+  }
+
+  subs.push(
+    call.onMessage((msg, from) => {
+      if (msg.t === 'state') {
+        if (msg.active) {
+          inCall.add(from)
+          void ensurePc(from)
+        } else {
+          inCall.delete(from)
+          streamEv.emit({ peer: from, stream: null })
+          if (!localStream) closePc(from)
         }
-        const blob = new Blob(parts as BlobPart[], { type: mime })
-        fileEv.emit({ ...base, sent: received, done: true, blob })
-      } catch (err) {
-        fileEv.emit({ ...base, sent: received, done: true, error: String(err) })
+      } else if (msg.t === 'rtc') {
+        void onRtc(from, msg.signal).catch((err) => console.warn('call negotiation failed', err))
       }
     }),
   )
 
-  let callStream: MediaStream | null = null
-  if (room.onPeerStream) {
-    subs.push(room.onPeerStream((stream, from) => streamEv.emit({ peer: from.pubkey, stream })))
+  async function refreshCallPaths() {
+    for (const [id, pc] of pcs) {
+      if (pc.connectionState !== 'connected') continue
+      const sel = await selectedCandidateType(pc).catch(() => null)
+      if (sel) peerTel(id).candidatePair = describeCandidatePath(sel.local, sel.remote)
+    }
   }
 
+  // ------------------------------------------------------------- DemoRoom
+
+  let closed = false
   const demo: DemoRoom = {
     mode: 'beamhop',
     roomId: cfg.roomId,
@@ -372,22 +417,21 @@ export async function joinBeamhopRoom(cfg: DemoConfig): Promise<DemoRoom> {
     onPeers: (cb) => peersEv.on(cb),
     sendChat(text) {
       const msg = { id: messageId(), text, at: Date.now() }
-      void chat.send(msg)
+      void chat.send(msg).catch((err) => console.warn('chat send failed', err))
       // Echo locally so the sender sees its own message immediately.
       chatEv.emit({ ...msg, from: selfId, name: self.name })
     },
     onChat: (cb) => chatEv.on(cb),
     sendCursor(x, y) {
-      void cursor.send({ x, y })
+      void cursor.send({ x, y }).catch(() => {})
     },
-    onCursor: (cb) =>
-      cursor.on((d, from) => cb({ from: from.pubkey, x: d.x, y: d.y } satisfies CursorUpdate)),
+    onCursor: (cb) => cursor.onMessage((d, from) => cb({ from, x: d.x, y: d.y })),
     async sendFile(file, name, onProgress) {
       const id = messageId()
       const mime = file.type || 'application/octet-stream'
       const total = file.size
       await Promise.all(
-        room.peers().map(async (p) => {
+        room.peers.map(async (p) => {
           const report = (sent: number, extra: Partial<FileProgress> = {}) => {
             const prog: FileProgress = {
               transferId: id,
@@ -397,20 +441,24 @@ export async function joinBeamhopRoom(cfg: DemoConfig): Promise<DemoRoom> {
               mime,
               sent,
               total,
-              done: sent >= total,
+              done: false,
               ...extra,
             }
             onProgress?.(prog)
             fileEv.emit(prog)
           }
           try {
-            await files.send(
-              p.pubkey,
-              file.stream() as ReadableStream<Uint8Array>,
-              { id, name, mime, size: total },
-              { onProgress: ({ sent }) => report(sent) },
-            )
-            report(total)
+            report(0)
+            await room.sendFile(file, {
+              to: p.pubkey,
+              name,
+              mime,
+              size: total,
+              onProgress: (sent) => {
+                if (sent < total) report(sent)
+              },
+            })
+            report(total, { done: true })
           } catch (err) {
             report(0, { done: true, error: String(err) })
           }
@@ -419,25 +467,34 @@ export async function joinBeamhopRoom(cfg: DemoConfig): Promise<DemoRoom> {
     },
     onFile: (cb) => fileEv.on(cb),
     async startCall(stream) {
-      callStream = stream
-      room.addStream?.(stream)
+      localStream = stream
+      await Promise.all(room.peers.map((p) => sendCall(p.pubkey, { t: 'state', active: true })))
+      for (const p of room.peers) await ensurePc(p.pubkey)
+      for (const pc of pcs.values()) await attachLocalTracks(pc)
     },
     async replaceCallStream(stream) {
-      if (callStream) room.removeStream?.(callStream)
-      callStream = stream
-      room.addStream?.(stream)
+      localStream = stream
+      for (const pc of pcs.values()) await attachLocalTracks(pc)
     },
     stopCall() {
-      if (callStream) room.removeStream?.(callStream)
-      callStream = null
+      localStream = null
+      for (const p of room.peers) void sendCall(p.pubkey, { t: 'state', active: false })
+      for (const [id, pc] of pcs) {
+        if (inCall.has(id)) void attachLocalTracks(pc)
+        else closePc(id)
+      }
     },
     onRemoteStream: (cb) => streamEv.on(({ peer, stream }) => cb(peer, stream)),
     telemetry: snapshot,
     onTelemetry: (cb) => telemetryEv.on(cb),
     async leave() {
+      if (closed) return
+      closed = true
       clearInterval(timer)
       for (const off of subs) off()
+      for (const id of [...pcs.keys()]) closePc(id)
       await room.leave()
+      for (const e of [peersEv, chatEv, fileEv, streamEv, telemetryEv]) e.clear()
     },
   }
   return demo
