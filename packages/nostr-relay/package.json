@@ -7,5 +7,15 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": { ".": "./src/index.ts" },
-  "scripts": { "test": "bun test", "build": "bun build ./src/index.ts --outdir dist --target browser && tsc --emitDeclarationOnly --outDir dist" }
+  "scripts": {
+    "test": "bun test",
+    "build": "bun build ./src/index.ts --outdir dist --target bun && tsc --emitDeclarationOnly --outDir dist"
+  },
+  "dependencies": {
+    "@noble/curves": "^1.6.0",
+    "@noble/hashes": "^1.5.0"
+  },
+  "devDependencies": {
+    "nostr-tools": "^2.10.0"
+  }
 }
