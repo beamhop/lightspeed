@@ -54,7 +54,8 @@ export class MemoryHub {
   defaults: LinkConditions
   detectMs: number
   private links = new Map<string, Partial<LinkConditions>>()
-  private partitions: { a: Set<Hex>; b: Set<Hex> | null }[] = []
+  private partitions: { id: number; a: Set<Hex>; b: Set<Hex> | null }[] = []
+  private partitionSeq = 0
   private killed = new Set<Hex>()
   private pending = new Map<string, { from: Hex; to: Hex; conn: MemoryConnection }>()
   private live = new Set<MemoryConnection>()
@@ -87,9 +88,29 @@ export class MemoryHub {
   }
 
   /** Cut every link between `a` and `b` (or between `a` and everyone else when `b` is omitted). */
-  partition(a: Hex[], b?: Hex[]): void {
-    this.partitions.push({ a: new Set(a), b: b ? new Set(b) : null })
+  partition(a: Hex[], b?: Hex[]): number {
+    const id = ++this.partitionSeq
+    this.partitions.push({ id, a: new Set(a), b: b ? new Set(b) : null })
     for (const c of this.live) if (this.blocked(c.local, c.remote)) c.scheduleFailure()
+    return id
+  }
+
+  /** Remove one partition (by the id `partition` returned). */
+  unpartition(id: number): void {
+    this.partitions = this.partitions.filter((p) => p.id !== id)
+    for (const c of this.live) if (!this.blocked(c.local, c.remote)) c.cancelFailure()
+  }
+
+  /** Current overrides for a pair (for restoring after a temporary fault). */
+  linkOverride(a: Hex, b: Hex): Partial<LinkConditions> | undefined {
+    const v = this.links.get(pairKey(a, b))
+    return v ? { ...v } : undefined
+  }
+
+  /** Replace (or with `undefined`, remove) the overrides for a pair. */
+  resetLink(a: Hex, b: Hex, cond?: Partial<LinkConditions>): void {
+    if (cond) this.links.set(pairKey(a, b), { ...cond })
+    else this.links.delete(pairKey(a, b))
   }
 
   /** Remove all partitions. Broken connections stay broken; peers reconnect. */
@@ -401,8 +422,9 @@ export interface MemoryTransportOptions {
 }
 
 /** Transport over a MemoryHub. Offer/answer travel over the room's signal pipe like a real transport. */
-export function memoryTransport(hub: MemoryHub, opts: MemoryTransportOptions = {}): Transport {
+export function memoryTransport(hub: MemoryHub, opts: MemoryTransportOptions = {}): Transport & { hub: MemoryHub } {
   return {
+    hub,
     name: opts.name ?? 'memory',
     connect(remote: Hex, o: TransportConnectOptions): Promise<Connection> {
       const local = o.local.pubkey

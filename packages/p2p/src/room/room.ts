@@ -43,6 +43,8 @@ import {
   roomTopic,
 } from '../wire'
 import { unionAdapters } from '../signaling/union'
+import { MemoryHub } from '../transport/memory'
+import { type DevtoolsOptions, startDevtools } from './devtools'
 import { type Lane, Link } from './link'
 import {
   type ActionDef,
@@ -147,6 +149,7 @@ interface SessionEntry {
   transport: string | null
   resumeTimer: unknown
   unwantedSince?: number | null
+  attachedAt: number
 }
 
 interface Presence {
@@ -444,6 +447,13 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
     this.tel({ type: 'signal', direction: 'in', kind: body.m.type, peer: s.from })
     if (body.tr === TR_CONTROL) {
       if (body.m.type === 'knock') {
+        // The peer has no live link to us. If ours looks alive and is not brand new, it is stale
+        // (e.g. the far side of a dropped relay socket): drop it so the session resumes on a fresh one.
+        const e = this.sessions.get(s.from)
+        const link = e?.session.link
+        if (e && link && e.session.state === 'connected' && this.clock.now() - e.attachedAt > 2000) {
+          link.kill('peer reported link down')
+        }
         const a = this.attempts.get(s.from)
         if (a) a.nextAt = 0
         this.ensure(s.from, true)
@@ -879,6 +889,7 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
         caps: hs.caps,
         transport: link.transport,
         resumeTimer: null,
+        attachedAt: this.clock.now(),
       }
       this.sessions.set(remote, entry)
       this.wireSession(remote, entry)
@@ -901,6 +912,7 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
     entry.verified = hs.verified
     entry.caps = hs.caps
     entry.transport = link.transport
+    entry.attachedAt = this.clock.now()
     if (entry.resumeTimer !== null) {
       this.clock.clearTimeout(entry.resumeTimer)
       entry.resumeTimer = null
@@ -1505,38 +1517,98 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
     }
   }
 
-  devtools(o: { channel?: string } = {}): { close(): void } {
-    const BC = (globalThis as { BroadcastChannel?: typeof BroadcastChannel }).BroadcastChannel
-    if (!BC) return { close() {} }
-    const ch = new BC(o.channel ?? 'beamhop-devtools')
-    const info = () => ({
-      topic: this.topic,
-      self: this.self.pubkey,
-      sid: this.sid,
-      host: this.hostKey,
-      topology: this.topology,
-      peers: this.peers,
-      sessions: this.debug.sessions(),
-    })
-    const unsub = this.bus.subscribe((ev) => {
-      try {
-        ch.postMessage({ type: 'telemetry', topic: this.topic, self: this.self.pubkey, ev })
-      } catch {}
-    })
-    ch.onmessage = (msg: MessageEvent) => {
-      const data = msg.data as { type?: string }
-      if (data?.type === 'hello' || data?.type === 'snapshot') {
-        ch.postMessage({ type: 'snapshot', ...info(), recent: this.bus.recent() })
-      }
-    }
-    ch.postMessage({ type: 'snapshot', ...info(), recent: this.bus.recent() })
+  devtools(o: DevtoolsOptions = {}): { close(): void } {
+    const room = this
+    const peersChanged = new Listeners<[]>()
+    const unsubs = [this.joinL, this.leaveL, this.updateL].map((l) => l.add(() => peersChanged.emit()))
+    unsubs.push(this.hostL.add(() => peersChanged.emit()))
+    const handle = startDevtools(
+      {
+        roomId: this.roomId,
+        selfKey: this.self.pubkey,
+        studioPeers: () => [
+          {
+            pubkey: room.self.pubkey,
+            isSelf: true,
+            isHost: room.hostKey === room.self.pubkey,
+            attestations: room.self.attestations.map((a) => a.type),
+            meta: room.opts.meta ?? {},
+            ...(typeof room.opts.meta?.name === 'string' ? { name: room.opts.meta.name } : {}),
+          },
+          ...room.peers.map((p) => ({
+            pubkey: p.pubkey,
+            isHost: p.isHost,
+            attestations: p.attestations.map((a) => a.type),
+            meta: p.meta,
+            ...(typeof p.meta.name === 'string' ? { name: p.meta.name } : {}),
+          })),
+        ],
+        onPeersChanged: (cb) => peersChanged.add(cb),
+        onTelemetry: (cb) => room.bus.subscribe(cb),
+        recentTelemetry: () => room.bus.recent(),
+        memoryHubs: () => {
+          const hubs = new Set<MemoryHub>()
+          for (const t of room.opts.transports) {
+            const hub = (t as { hub?: unknown }).hub
+            if (hub instanceof MemoryHub) hubs.add(hub)
+          }
+          return [...hubs]
+        },
+        killLinks: (peer) => {
+          for (const [pk, e] of room.sessions) if (peer === 'all' || pk === peer) e.session.link?.kill('devtools fault')
+        },
+        connectionInfo: async (peer) => {
+          const link = room.sessions.get(peer)?.session.link
+          if (!link) return null
+          const st = await link.conn.stats().catch(() => null)
+          return {
+            state: link.conn.state,
+            path: link.path,
+            channels: Object.values(link.channels).map((c) => ({
+              label: c.label,
+              reliability: c.reliability.mode,
+              readyState: c.readyState,
+              bufferedAmount: c.bufferedAmount,
+              bufferedAmountLowThreshold: c.bufferedAmountLowThreshold,
+            })),
+            candidatePairs: st
+              ? [
+                  {
+                    local: st.localCandidateType ?? link.transport,
+                    remote: st.remoteCandidateType ?? link.transport,
+                    path: st.path,
+                    state: 'succeeded' as const,
+                    nominated: true,
+                    ...(st.rttMs !== undefined ? { rttMs: st.rttMs } : {}),
+                  },
+                ]
+              : [],
+          }
+        },
+        checkAdmission: async (id) => {
+          const r = await room.admit({
+            v: PROTOCOL_VERSION,
+            pubkey: id.pubkey,
+            sid: '',
+            topic: room.topic,
+            nonce: new Uint8Array(32),
+            attestations: [id.attestation],
+            meta: {},
+          })
+          return r.ok ? { admitted: true } : { admitted: false, reason: r.reason }
+        },
+        reportError: (code, message) => room.tel({ type: 'error', code, message }),
+      },
+      o,
+    )
     return {
       close: () => {
-        unsub()
-        ch.close()
+        for (const u of unsubs) u()
+        handle.close()
       },
     }
   }
+
 
   readonly debug = {
     sessions: (): SessionInfo[] =>

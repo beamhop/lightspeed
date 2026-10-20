@@ -1,4 +1,5 @@
 import type { Capability, CapabilityToken } from '../identity/capability'
+import type { DevtoolsOptions } from './devtools'
 import type { AttestationResult, JwksResolver } from '../identity/oidc'
 import type { SharedLog, SharedMap } from '../state/store'
 import type { TelemetryBus } from '../telemetry'
@@ -212,7 +213,7 @@ export interface Room<P extends ProtocolDef = ProtocolDef> {
   readonly state: RoomStateApi
   readonly telemetry: RoomTelemetry
   /** Expose telemetry on a BroadcastChannel for the in-page Studio bridge. */
-  devtools(opts?: { channel?: string }): { close(): void }
+  devtools(opts?: DevtoolsOptions): { close(): void }
   /** Studio / simulator introspection. */
   readonly debug: { sessions(): SessionInfo[]; presence(): Hex[] }
   leave(): Promise<void>

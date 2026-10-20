@@ -107,6 +107,7 @@ class RelaySocket {
             reject(new Error(`relay: ${msg.code}: ${msg.message}`))
           } else if (msg.type === 'peer-offline') {
             this.offlineL.emit(msg.pubkey)
+            for (const c of [...this.conns.values()]) if (c.remote === msg.pubkey) c.fail()
           }
           return
         }

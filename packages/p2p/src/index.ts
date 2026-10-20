@@ -65,6 +65,15 @@ export type { RelayTransport, RelayTransportOptions } from './transport/relay'
 // room
 export { createRoom } from './room/room'
 export type * from './room/types'
+export { devtoolsChannelName, startDevtools } from './room/devtools'
+export type {
+  DevtoolsChannelInfo,
+  DevtoolsConnectionInfo,
+  DevtoolsFault,
+  DevtoolsIdentity,
+  DevtoolsOptions,
+  DevtoolsPeer,
+} from './room/devtools'
 export { action, any, defineProtocol, request, ValidationError } from './room/protocol'
 export type {
   ActionDef,

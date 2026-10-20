@@ -104,6 +104,43 @@ describe('room over memory transport', () => {
     expect(a.peers[0]?.verified[0]).toMatchObject({ type: 'nostr', ok: true })
   })
 
+  test('connection ladder falls through a failing rung', async () => {
+    const { clock, join, net } = setup()
+    const broken = { name: 'broken', connect: () => Promise.reject(new Error('no route')) }
+    const errors: string[] = []
+    const a = await join({ transports: [broken, memoryTransport(net)] })
+    const b = await join({ transports: [broken, memoryTransport(net)] })
+    a.telemetry.subscribe((e) => e.type === 'error' && errors.push(e.code))
+    b.telemetry.subscribe((e) => e.type === 'error' && errors.push(e.code))
+    await clock.until(() => a.peers.length === 1 && b.peers.length === 1)
+    expect(errors).toContain('connect:broken')
+    expect(a.peers[0]?.path).toBe('memory')
+  })
+
+  test('relayFirst: connect over the relay rung, then migrate to direct without loss', async () => {
+    const { clock, join, sig } = setup()
+    const direct = createMemoryHub({ clock, seed: 5, defaults: { latencyMs: 150, path: 'direct' } })
+    const relay = createMemoryHub({ clock, seed: 6, defaults: { latencyMs: 10, path: 'relay' } })
+    const transports = [memoryTransport(direct), memoryTransport(relay, { name: 'relay' })]
+    const paths: string[] = []
+    const a = await join({ transports, relayFirst: true, signaling: memorySignaling(sig) })
+    const b = await join({ transports, relayFirst: true, signaling: memorySignaling(sig) })
+    b.telemetry.subscribe((e) => e.type === 'path' && paths.push(e.path))
+    const got: string[] = []
+    b.action('chat').onMessage((m) => got.push(m))
+    await clock.until(() => a.peers.length === 1 && b.peers.length === 1)
+    expect(a.peers[0]?.path).toBe('relay')
+    // Keep sending while the direct path comes up and the session migrates.
+    for (let i = 0; i < 40; i++) {
+      void a.action('chat').send(`m${i}`)
+      await clock.advance(25)
+    }
+    await clock.until(() => a.peers[0]?.path === 'direct' && got.length === 40, 20_000)
+    expect(paths[0]).toBe('relay')
+    expect(paths.at(-1)).toBe('direct')
+    expect(got).toEqual(Array.from({ length: 40 }, (_, i) => `m${i}`))
+  })
+
   test('capability required + debug observer receives telemetry', async () => {
     const { clock, join } = setup()
     const appKey = generateSecretKey()
