@@ -1,0 +1,20 @@
+---
+// Embeds the live demo (deployed at <base>/demo/ by pages.yml). Loads lazily so the docs stay fast.
+interface Props {
+  query?: string
+  title?: string
+}
+const { query = '', title = 'Beamhop live demo' } = Astro.props
+const src = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/demo/${query}`
+---
+
+<iframe
+  class="demo-frame"
+  src={src}
+  title={title}
+  loading="lazy"
+  allow="camera; microphone; display-capture; clipboard-write"></iframe>
+<p>
+  <a href={src} target="_blank" rel="noopener">Open the demo in a new tab</a>, then open the same
+  room link on another device or in another browser to see peers connect.
+</p>
