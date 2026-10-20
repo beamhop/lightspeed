@@ -1,1 +1,18 @@
-export {}
+// @beamhop/studio — library surface. The web app lives in src/app; the Bun server (spawner,
+// static hosting, `beamhop studio`) is exported from '@beamhop/studio/server'.
+export * from './adapters/bridge'
+export * from './adapters/observer'
+export * from './adapters/simulated'
+export * from './health'
+export * from './identity'
+export * from './model/connection'
+export * from './model/events'
+export * from './model/inspector'
+export * from './model/layout'
+export * from './model/timeline'
+export * from './model/topology'
+export * from './room-adapter'
+export * from './sim/engine'
+export * from './sim/rng'
+export type { SpawnedPeer, SpawnPlan, SpawnRequest } from './spawner'
+export { buildSpawnPlans, MAX_SPAWN, validateSpawnRequest } from './spawner'

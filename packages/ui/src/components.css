@@ -1,0 +1,615 @@
+/* Beamhop components. Requires tokens.css (the --bh-* custom properties). */
+
+.bh-root,
+.bh-root * {
+  box-sizing: border-box;
+}
+.bh-root {
+  background: var(--bh-midnight);
+  color: var(--bh-text);
+  font-family: var(--bh-font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.bh-mono {
+  font-family: var(--bh-font-mono);
+  font-size: 12.5px;
+}
+.bh-muted {
+  color: var(--bh-text-muted);
+}
+
+/* ------------------------------------------------------------- button */
+.bh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--bh-border);
+  border-radius: var(--bh-radius-sm);
+  background: var(--bh-surface-raised);
+  color: var(--bh-text);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 0.12s,
+    border-color 0.12s,
+    opacity 0.12s;
+}
+.bh-btn--md {
+  height: 34px;
+  padding: 0 14px;
+}
+.bh-btn--sm {
+  height: 26px;
+  padding: 0 9px;
+  font-size: 12.5px;
+}
+.bh-btn:hover:not(:disabled) {
+  border-color: var(--bh-text-muted);
+}
+.bh-btn:focus-visible {
+  outline: 2px solid var(--bh-teal);
+  outline-offset: 2px;
+}
+.bh-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.bh-btn--primary {
+  background: var(--bh-teal);
+  border-color: var(--bh-teal);
+  color: var(--bh-midnight);
+}
+.bh-btn--primary:hover:not(:disabled) {
+  border-color: var(--bh-text);
+}
+.bh-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+}
+.bh-btn--ghost:hover:not(:disabled) {
+  background: var(--bh-surface-raised);
+}
+.bh-btn--danger {
+  background: transparent;
+  border-color: var(--bh-danger);
+  color: var(--bh-danger);
+}
+.bh-btn--danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--bh-danger) 15%, transparent);
+  border-color: var(--bh-danger);
+}
+.bh-btn__spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: bh-spin 0.8s linear infinite;
+}
+.bh-icon-btn.bh-btn--md {
+  width: 34px;
+  padding: 0;
+}
+.bh-icon-btn.bh-btn--sm {
+  width: 26px;
+  padding: 0;
+}
+@keyframes bh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* --------------------------------------------------------------- card */
+.bh-card {
+  background: var(--bh-surface);
+  border: 1px solid var(--bh-border);
+  border-radius: var(--bh-radius-md);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.bh-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--bh-border);
+}
+.bh-card__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--bh-text-muted);
+}
+.bh-card__actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.bh-card__body {
+  padding: 14px;
+  min-height: 0;
+  flex: 1;
+}
+.bh-card__body--flush {
+  padding: 0;
+}
+
+/* -------------------------------------------------------------- badge */
+.bh-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  --bh-badge-color: var(--bh-text-muted);
+  color: var(--bh-badge-color);
+  background: color-mix(in srgb, var(--bh-badge-color) 14%, transparent);
+  border-color: color-mix(in srgb, var(--bh-badge-color) 35%, transparent);
+}
+.bh-badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.bh-badge--teal,
+.bh-badge--path-direct {
+  --bh-badge-color: var(--bh-teal);
+}
+.bh-badge--violet,
+.bh-badge--path-turn {
+  --bh-badge-color: var(--bh-violet);
+}
+.bh-badge--warning,
+.bh-badge--path-relay {
+  --bh-badge-color: var(--bh-warning);
+}
+.bh-badge--success {
+  --bh-badge-color: var(--bh-success);
+}
+.bh-badge--danger {
+  --bh-badge-color: var(--bh-danger);
+}
+.bh-badge--path-memory {
+  --bh-badge-color: var(--bh-text-muted);
+}
+
+/* -------------------------------------------------------------- table */
+.bh-table-wrap {
+  overflow: auto;
+  max-width: 100%;
+}
+.bh-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.bh-table th {
+  position: sticky;
+  top: 0;
+  background: var(--bh-surface);
+  color: var(--bh-text-muted);
+  font-weight: 600;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--bh-border);
+  z-index: 1;
+}
+.bh-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--bh-border) 60%, transparent);
+  vertical-align: middle;
+}
+.bh-table--dense th,
+.bh-table--dense td {
+  padding: 4px 10px;
+}
+.bh-table__row--clickable {
+  cursor: pointer;
+}
+.bh-table__row--clickable:hover td {
+  background: var(--bh-surface-raised);
+}
+.bh-table__row--selected td {
+  background: color-mix(in srgb, var(--bh-teal) 10%, transparent);
+}
+.bh-table td.bh-table__empty {
+  text-align: center;
+  color: var(--bh-text-muted);
+  padding: 24px;
+}
+
+/* --------------------------------------------------------------- tabs */
+.bh-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--bh-border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.bh-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--bh-text-muted);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.bh-tab:hover:not(:disabled) {
+  color: var(--bh-text);
+}
+.bh-tab--active {
+  color: var(--bh-text);
+  border-bottom-color: var(--bh-teal);
+}
+.bh-tab:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.bh-tab:focus-visible {
+  outline: 2px solid var(--bh-teal);
+  outline-offset: -2px;
+}
+.bh-tab__count {
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--bh-surface-raised);
+  color: var(--bh-text-muted);
+}
+
+/* ------------------------------------------------------------- dialog */
+.bh-dialog__backdrop {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--bh-midnight) 70%, transparent);
+  backdrop-filter: blur(3px);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 100;
+  animation: bh-fade 0.12s ease-out;
+}
+.bh-dialog {
+  width: 100%;
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  background: var(--bh-surface);
+  border: 1px solid var(--bh-border);
+  border-radius: var(--bh-radius-lg);
+  box-shadow: 0 20px 60px rgb(0 0 0 / 0.5);
+  outline: none;
+}
+.bh-dialog--sm {
+  max-width: 400px;
+}
+.bh-dialog--md {
+  max-width: 560px;
+}
+.bh-dialog--lg {
+  max-width: 860px;
+}
+.bh-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px 8px;
+}
+.bh-dialog__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+.bh-dialog__close {
+  background: none;
+  border: none;
+  color: var(--bh-text-muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.bh-dialog__body {
+  padding: 8px 18px 16px;
+  color: var(--bh-text-muted);
+}
+.bh-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px 16px;
+  border-top: 1px solid var(--bh-border);
+}
+@keyframes bh-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* -------------------------------------------------------------- toast */
+.bh-toasts {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 200;
+  max-width: min(380px, calc(100vw - 32px));
+}
+.bh-toast {
+  --bh-toast-color: var(--bh-teal);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bh-surface-raised);
+  border: 1px solid var(--bh-border);
+  border-left: 3px solid var(--bh-toast-color);
+  border-radius: var(--bh-radius-sm);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+  animation: bh-fade 0.15s ease-out;
+}
+.bh-toast--success {
+  --bh-toast-color: var(--bh-success);
+}
+.bh-toast--warning {
+  --bh-toast-color: var(--bh-warning);
+}
+.bh-toast--danger {
+  --bh-toast-color: var(--bh-danger);
+}
+.bh-toast__msg {
+  flex: 1;
+}
+.bh-toast__close {
+  background: none;
+  border: none;
+  color: var(--bh-text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* -------------------------------------------------------------- forms */
+.bh-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.bh-field__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--bh-text-muted);
+}
+.bh-field__hint {
+  font-size: 12px;
+  color: var(--bh-text-muted);
+}
+.bh-field__error {
+  font-size: 12px;
+  color: var(--bh-danger);
+}
+.bh-input,
+.bh-select {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--bh-border);
+  border-radius: var(--bh-radius-sm);
+  background: var(--bh-midnight);
+  color: var(--bh-text);
+  font: inherit;
+  min-width: 0;
+  width: 100%;
+}
+.bh-input:focus,
+.bh-select:focus {
+  outline: none;
+  border-color: var(--bh-teal);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bh-teal) 20%, transparent);
+}
+.bh-field--error .bh-input {
+  border-color: var(--bh-danger);
+}
+.bh-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  color: var(--bh-text);
+  font: inherit;
+  cursor: pointer;
+  padding: 2px 0;
+}
+.bh-toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.bh-toggle__track {
+  position: relative;
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--bh-border);
+  transition: background 0.15s;
+  flex: none;
+}
+.bh-toggle__thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--bh-text);
+  transition: transform 0.15s;
+}
+.bh-toggle--on .bh-toggle__track {
+  background: var(--bh-teal);
+}
+.bh-toggle--on .bh-toggle__thumb {
+  transform: translateX(14px);
+  background: var(--bh-midnight);
+}
+.bh-toggle:focus-visible .bh-toggle__track {
+  outline: 2px solid var(--bh-teal);
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------- stat */
+.bh-stat {
+  --bh-stat-color: var(--bh-text);
+  padding: 12px 14px;
+  background: var(--bh-surface);
+  border: 1px solid var(--bh-border);
+  border-radius: var(--bh-radius-md);
+  min-width: 0;
+}
+.bh-stat--teal {
+  --bh-stat-color: var(--bh-teal);
+}
+.bh-stat--violet {
+  --bh-stat-color: var(--bh-violet);
+}
+.bh-stat--warning {
+  --bh-stat-color: var(--bh-warning);
+}
+.bh-stat--danger {
+  --bh-stat-color: var(--bh-danger);
+}
+.bh-stat__label {
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--bh-text-muted);
+}
+.bh-stat__value {
+  font-size: 22px;
+  font-weight: 650;
+  color: var(--bh-stat-color);
+  font-variant-numeric: tabular-nums;
+}
+.bh-stat__unit {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--bh-text-muted);
+  margin-left: 4px;
+}
+.bh-stat__delta {
+  font-size: 12px;
+}
+.bh-stat__delta--up {
+  color: var(--bh-success);
+}
+.bh-stat__delta--down {
+  color: var(--bh-danger);
+}
+.bh-stat__trend {
+  display: block;
+  margin-top: 6px;
+}
+
+/* ---------------------------------------------------------- sparkline */
+.bh-sparkline {
+  display: inline-block;
+  vertical-align: middle;
+  overflow: visible;
+}
+
+/* -------------------------------------------------------------- empty */
+.bh-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 32px 16px;
+}
+.bh-empty__title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.bh-empty__desc {
+  color: var(--bh-text-muted);
+  max-width: 380px;
+}
+.bh-empty__action {
+  margin-top: 6px;
+}
+
+/* ------------------------------------------------------------- mascot */
+.bh-mascot {
+  display: inline-block;
+  overflow: visible;
+}
+.bh-mascot .bh-mascot__fur {
+  fill: var(--bh-text);
+  stroke: var(--bh-midnight);
+}
+.bh-mascot .bh-mascot__inner-ear,
+.bh-mascot .bh-mascot__nose {
+  fill: var(--bh-violet);
+}
+.bh-mascot--angry .bh-mascot__inner-ear {
+  fill: var(--bh-danger);
+}
+.bh-mascot--spinner .bh-mascot__ring circle {
+  stroke: var(--bh-teal);
+}
+.bh-mascot--idle .bh-mascot__ears {
+  transform-origin: 60px 60px;
+  animation: bh-ear-twitch 4s ease-in-out infinite;
+}
+.bh-mascot--smile {
+  animation: bh-hop 1.4s ease-in-out infinite;
+}
+@keyframes bh-ear-twitch {
+  0%,
+  92%,
+  100% {
+    transform: rotate(0deg);
+  }
+  95% {
+    transform: rotate(-4deg);
+  }
+}
+@keyframes bh-hop {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bh-mascot,
+  .bh-mascot * {
+    animation: none !important;
+  }
+}

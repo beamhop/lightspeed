@@ -13,10 +13,18 @@ export const colors = {
   danger: '#F87171',
 } as const
 
-export const pathColors = { direct: colors.teal, turn: colors.violet, relay: colors.warning, memory: colors.textMuted } as const
+export const pathColors = {
+  direct: colors.teal,
+  turn: colors.violet,
+  relay: colors.warning,
+  memory: colors.textMuted,
+} as const
 
 export const radii = { sm: '6px', md: '10px', lg: '16px' } as const
-export const fonts = { sans: "'Inter', system-ui, sans-serif", mono: "'JetBrains Mono', ui-monospace, monospace" } as const
+export const fonts = {
+  sans: "'Inter', system-ui, sans-serif",
+  mono: "'JetBrains Mono', ui-monospace, monospace",
+} as const
 
 /** Mascot states used for loading, empty and error states. */
 export type MascotState = 'idle' | 'spinner' | 'smile' | 'angry' | 'secret'

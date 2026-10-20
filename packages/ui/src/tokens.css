@@ -1,7 +1,18 @@
 :root {
-  --bh-midnight: #0b0e1a; --bh-surface: #141829; --bh-surface-raised: #1c2138; --bh-border: #2a3050;
-  --bh-text: #e8eaf6; --bh-text-muted: #9aa0c3; --bh-teal: #5eead4; --bh-violet: #8b7bff;
-  --bh-success: #4ade80; --bh-warning: #fbbf24; --bh-danger: #f87171;
-  --bh-radius-sm: 6px; --bh-radius-md: 10px; --bh-radius-lg: 16px;
-  --bh-font-sans: 'Inter', system-ui, sans-serif; --bh-font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --bh-midnight: #0b0e1a;
+  --bh-surface: #141829;
+  --bh-surface-raised: #1c2138;
+  --bh-border: #2a3050;
+  --bh-text: #e8eaf6;
+  --bh-text-muted: #9aa0c3;
+  --bh-teal: #5eead4;
+  --bh-violet: #8b7bff;
+  --bh-success: #4ade80;
+  --bh-warning: #fbbf24;
+  --bh-danger: #f87171;
+  --bh-radius-sm: 6px;
+  --bh-radius-md: 10px;
+  --bh-radius-lg: 16px;
+  --bh-font-sans: "Inter", system-ui, sans-serif;
+  --bh-font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
