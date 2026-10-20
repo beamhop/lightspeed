@@ -15,5 +15,14 @@
   },
   "dependencies": {
     "@beamhop/p2p": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-test-renderer": "^18.3.0",
+    "react": "^18.3.1",
+    "react-test-renderer": "^18.3.1"
   }
 }

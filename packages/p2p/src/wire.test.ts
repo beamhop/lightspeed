@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import {
-  FrameType,
   decodeFrame,
   decodeRelayEnvelope,
   encodeFrame,
   encodeRelayEnvelope,
+  FrameType,
   parseTurnUsername,
   roomKey,
   roomTopic,
@@ -36,7 +36,11 @@ describe('wire', () => {
 
   test('turn credentials', () => {
     const u = turnUsername(1700000000, 'app', 'ff'.repeat(32))
-    expect(parseTurnUsername(u)).toEqual({ expiry: 1700000000, appId: 'app', pubkey: 'ff'.repeat(32) })
+    expect(parseTurnUsername(u)).toEqual({
+      expiry: 1700000000,
+      appId: 'app',
+      pubkey: 'ff'.repeat(32),
+    })
     // HMAC-SHA1("secret", "1700000000:app:ff..") is deterministic base64 of 20 bytes
     expect(turnPassword('secret', u)).toMatch(/^[A-Za-z0-9+/]{27}=$/)
   })

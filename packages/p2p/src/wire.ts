@@ -13,6 +13,10 @@ export const ANNOUNCE_TTL_S = 30
 export const ANNOUNCE_INTERVAL_S = 20
 export const CHUNK_SIZE = 16 * 1024
 export const TELEMETRY_CHANNEL = '__beamhop/telemetry'
+/** Event kind a Nostr key signs to vouch for a session pubkey (content 'beamhop-session', tag p = session). */
+export const KIND_SESSION_ATTESTATION = 28100
+/** Kind 20100 announce lifetime and directed-signal kinds live above; NIP-46 RPC uses kind 24133. */
+export const KIND_NIP46 = 24133
 
 const PREFIX = utf8ToBytes('beamhop/v1')
 
