@@ -10,7 +10,12 @@
     ".": "./src/index.ts",
     "./server": "./src/server.ts"
   },
-  "files": ["src", "dist", "index.html", "vite.config.ts"],
+  "files": [
+    "src",
+    "dist",
+    "index.html",
+    "vite.config.ts"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vite build",
