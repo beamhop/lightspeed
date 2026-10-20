@@ -59,7 +59,10 @@ export interface DevtoolsOptions {
   /** Channel name override (default `beamhop-devtools:<roomId>`). */
   channel?: string
   /** Called when Studio's identity switcher picks an identity, with this room's admission decision. */
-  onIdentity?: (identity: DevtoolsIdentity, admission: { admitted: boolean; reason?: string }) => void
+  onIdentity?: (
+    identity: DevtoolsIdentity,
+    admission: { admitted: boolean; reason?: string },
+  ) => void
   /** Custom BroadcastChannel factory (tests, non-browser runtimes). */
   createChannel?: (name: string) => DevtoolsChannelLike
 }
@@ -94,7 +97,8 @@ export function startDevtools(host: DevtoolsHost, opts: DevtoolsOptions = {}): {
   let ch: DevtoolsChannelLike
   if (opts.createChannel) ch = opts.createChannel(name)
   else {
-    const BC = (globalThis as { BroadcastChannel?: new (n: string) => DevtoolsChannelLike }).BroadcastChannel
+    const BC = (globalThis as { BroadcastChannel?: new (n: string) => DevtoolsChannelLike })
+      .BroadcastChannel
     if (!BC) return { close() {} }
     ch = new BC(name)
   }
@@ -126,7 +130,9 @@ export function startDevtools(host: DevtoolsHost, opts: DevtoolsOptions = {}): {
           }
         } else if (f.type === 'partition') {
           const groups = f.groups.filter((g) => g.length > 0)
-          const ids = groups.map((g, i) => hub.partition(g, groups.filter((_, j) => j !== i).flat()))
+          const ids = groups.map((g, i) =>
+            hub.partition(g, groups.filter((_, j) => j !== i).flat()),
+          )
           undos.push(() => {
             for (const id of ids) hub.unpartition(id)
           })
@@ -160,7 +166,8 @@ export function startDevtools(host: DevtoolsHost, opts: DevtoolsOptions = {}): {
     switch (m.type) {
       case 'studio-hello':
         hello()
-        for (const ev of host.recentTelemetry()) post({ type: 'telemetry', source: self, event: ev })
+        for (const ev of host.recentTelemetry())
+          post({ type: 'telemetry', source: self, event: ev })
         return
       case 'fault': {
         const id = String(m.id)

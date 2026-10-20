@@ -23,9 +23,21 @@ import type {
   TransportConnectOptions,
   Unsubscribe,
 } from '../types'
-import { bytesToHex, bytesToUtf8, concatBytes, hexToBytes, randomBytes, utf8ToBytes } from '../util/bytes'
+import {
+  bytesToHex,
+  bytesToUtf8,
+  concatBytes,
+  hexToBytes,
+  randomBytes,
+  utf8ToBytes,
+} from '../util/bytes'
 import { Listeners } from '../util/emitter'
-import { type RelayControl, decodeRelayEnvelope, encodeRelayEnvelope, relayHelloHash } from '../wire'
+import {
+  decodeRelayEnvelope,
+  encodeRelayEnvelope,
+  type RelayControl,
+  relayHelloHash,
+} from '../wire'
 
 const T_CONNECT = 1
 const T_ACCEPT = 2
@@ -97,7 +109,13 @@ class RelaySocket {
           }
           if (msg.type === 'challenge') {
             void identity.sign(relayHelloHash(appId, msg.challenge)).then((sig) => {
-              ws.send(JSON.stringify({ type: 'hello', pubkey: identity.pubkey, sig: bytesToHex(sig) } satisfies RelayControl))
+              ws.send(
+                JSON.stringify({
+                  type: 'hello',
+                  pubkey: identity.pubkey,
+                  sig: bytesToHex(sig),
+                } satisfies RelayControl),
+              )
             })
           } else if (msg.type === 'ready') {
             clearTimeout(timer)
@@ -111,7 +129,10 @@ class RelaySocket {
           }
           return
         }
-        const buf = ev.data instanceof ArrayBuffer ? new Uint8Array(ev.data) : new Uint8Array(ev.data as ArrayBufferLike)
+        const buf =
+          ev.data instanceof ArrayBuffer
+            ? new Uint8Array(ev.data)
+            : new Uint8Array(ev.data as ArrayBufferLike)
         this.onBinary(buf)
       })
       ws.addEventListener('close', () => {
@@ -152,7 +173,9 @@ class RelaySocket {
 
   send(to: Hex, type: number, connId: string, rest: Uint8Array): void {
     if (this.closed || this.ws.readyState !== 1) throw new Error('relay socket not open')
-    this.ws.send(encodeRelayEnvelope(to, concatBytes(new Uint8Array([type]), hexToBytes(connId), rest)))
+    this.ws.send(
+      encodeRelayEnvelope(to, concatBytes(new Uint8Array([type]), hexToBytes(connId), rest)),
+    )
   }
 
   shutdown(): void {
@@ -210,7 +233,8 @@ class RelayChannel implements Channel {
   }
 
   send(data: Uint8Array): void {
-    if (this.readyState !== 'open') throw new Error(`relay channel ${this.label} is ${this.readyState}`)
+    if (this.readyState !== 'open')
+      throw new Error(`relay channel ${this.label} is ${this.readyState}`)
     const head = new Uint8Array(3)
     head[0] = OP_MSG
     new DataView(head.buffer).setUint16(1, this.id)
@@ -351,7 +375,11 @@ class RelayConnection implements Connection {
       if (this.channels.has(id) || plain.length < 5) return
       const mode = plain[3]
       const reliability: Reliability =
-        mode === 0 ? { mode: 'reliable' } : mode === 1 ? { mode: 'unordered' } : { mode: 'unreliable', maxRetransmits: plain[4] as number }
+        mode === 0
+          ? { mode: 'reliable' }
+          : mode === 1
+            ? { mode: 'unordered' }
+            : { mode: 'unreliable', maxRetransmits: plain[4] as number }
       const ch = new RelayChannel(id, bytesToUtf8(plain.subarray(5)), reliability, this)
       this.channels.set(id, ch)
       ch.setOpen()

@@ -1,6 +1,6 @@
 import type { Hex, IdentityProvider } from '../types'
 import { hexToBytes } from '../util/bytes'
-import { type LocalIdentity, generateSecretKey, keyIdentity } from './key'
+import { generateSecretKey, keyIdentity, type LocalIdentity } from './key'
 
 /** Where persisted identity keys live. The default uses IndexedDB when available. */
 export interface KeyStorage {

@@ -4,7 +4,9 @@ import type { Signal, SignalingAdapter, SignalingFactory, SignalingStatus } from
  * Fan out to several signaling adapters for redundancy. Sends succeed if any adapter succeeds; received
  * signals are de-duplicated (same sender, kind and content) so the room sees each signal once.
  */
-export function unionSignaling(...factories: (SignalingFactory | SignalingFactory[])[]): SignalingFactory {
+export function unionSignaling(
+  ...factories: (SignalingFactory | SignalingFactory[])[]
+): SignalingFactory {
   const flat = factories.flat()
   return (ctx) => {
     const adapters = flat.map((f) => f(ctx))

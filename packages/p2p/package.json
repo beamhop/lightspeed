@@ -11,7 +11,10 @@
     "./wire": "./src/wire.ts",
     "./types": "./src/types.ts",
     "./webrtc": "./src/transport/webrtc.ts",
-    "./memory": "./src/transport/memory.ts"
+    "./memory": "./src/transport/memory.ts",
+    "./relay": "./src/transport/relay.ts",
+    "./nip44": "./src/crypto/nip44.ts",
+    "./devtools": "./src/room/devtools.ts"
   },
   "scripts": {
     "test": "bun test",

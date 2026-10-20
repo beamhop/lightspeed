@@ -122,7 +122,8 @@ export class MemoryHub {
   /** Crash a peer's network: its connections drop and new ones fail until `revive`. */
   kill(pubkey: Hex): void {
     this.killed.add(pubkey)
-    for (const c of [...this.live]) if (c.local === pubkey || c.remote === pubkey) c.scheduleFailure(0)
+    for (const c of [...this.live])
+      if (c.local === pubkey || c.remote === pubkey) c.scheduleFailure(0)
   }
 
   revive(pubkey: Hex): void {
@@ -144,7 +145,14 @@ export class MemoryHub {
     const out: MemoryLinkInfo[] = []
     for (const c of this.live) {
       if (c.local > c.remote) continue
-      out.push({ id: c.id, a: c.local, b: c.remote, path: c.path, state: c.state, bytes: c.bytesSent + c.bytesReceived })
+      out.push({
+        id: c.id,
+        a: c.local,
+        b: c.remote,
+        path: c.path,
+        state: c.state,
+        bytes: c.bytesSent + c.bytesReceived,
+      })
     }
     return out
   }
@@ -205,7 +213,8 @@ class MemoryChannel implements Channel {
   }
 
   send(data: Uint8Array): void {
-    if (this.readyState === 'closing' || this.readyState === 'closed') throw new Error('channel closed')
+    if (this.readyState === 'closing' || this.readyState === 'closed')
+      throw new Error('channel closed')
     const copy = data.slice()
     if (this.readyState === 'connecting') {
       this.queued.push(copy)
@@ -225,13 +234,17 @@ class MemoryChannel implements Channel {
     clock.setTimeout(() => {
       const before = this.bufferedAmount
       this.bufferedAmount -= copy.length
-      if (before > this.bufferedAmountLowThreshold && this.bufferedAmount <= this.bufferedAmountLowThreshold) {
+      if (
+        before > this.bufferedAmountLowThreshold &&
+        this.bufferedAmount <= this.bufferedAmountLowThreshold
+      ) {
         this.lowL.emit()
       }
     }, txEnd - now)
 
     if (hub.blocked(this.conn.local, this.conn.remote)) return
-    let delay = txEnd - now + cond.latencyMs + (cond.jitterMs > 0 ? hub.random() * cond.jitterMs : 0)
+    let delay =
+      txEnd - now + cond.latencyMs + (cond.jitterMs > 0 ? hub.random() * cond.jitterMs : 0)
     const lost = cond.loss > 0 && hub.random() < cond.loss
     if (this.reliability.mode === 'unreliable') {
       if (lost) return
@@ -282,7 +295,11 @@ class MemoryChannel implements Channel {
   close(): void {
     this.closeLocal()
     const peer = this.peer
-    if (peer) this.conn.hub.clock.setTimeout(() => peer.closeLocal(), this.conn.hub.conditions(this.conn.local, this.conn.remote).latencyMs)
+    if (peer)
+      this.conn.hub.clock.setTimeout(
+        () => peer.closeLocal(),
+        this.conn.hub.conditions(this.conn.local, this.conn.remote).latencyMs,
+      )
   }
 
   /** @internal */
@@ -422,7 +439,10 @@ export interface MemoryTransportOptions {
 }
 
 /** Transport over a MemoryHub. Offer/answer travel over the room's signal pipe like a real transport. */
-export function memoryTransport(hub: MemoryHub, opts: MemoryTransportOptions = {}): Transport & { hub: MemoryHub } {
+export function memoryTransport(
+  hub: MemoryHub,
+  opts: MemoryTransportOptions = {},
+): Transport & { hub: MemoryHub } {
   return {
     hub,
     name: opts.name ?? 'memory',

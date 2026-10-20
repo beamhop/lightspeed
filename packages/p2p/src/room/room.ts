@@ -4,16 +4,18 @@ import { decodeCbor, encodeCbor } from '../codec/cbor'
 import { schnorrVerify } from '../crypto/nostr'
 import { type Capability, type CapabilityToken, verifyCapability } from '../identity/capability'
 import { type AttestationResult, verifyAttestation } from '../identity/oidc'
+import { unionAdapters } from '../signaling/union'
 import { type StateOp, type StateSnapshot, StateStore } from '../state/store'
 import { TelemetryBus, type TelemetryInput } from '../telemetry'
+import { MemoryHub } from '../transport/memory'
 import type {
   Attestation,
   Hex,
   Identity,
   IdentityProvider,
   Signal,
-  SignalPipe,
   SignalingAdapter,
+  SignalPipe,
   TelemetryEvent,
   Transport,
   TransportSignal,
@@ -38,21 +40,19 @@ import {
   type Frame,
   FrameType,
   PROTOCOL_VERSION,
-  TELEMETRY_CHANNEL,
   roomKey,
   roomTopic,
+  TELEMETRY_CHANNEL,
 } from '../wire'
-import { unionAdapters } from '../signaling/union'
-import { MemoryHub } from '../transport/memory'
 import { type DevtoolsOptions, startDevtools } from './devtools'
 import { type Lane, Link } from './link'
 import {
   type ActionDef,
+  laneFor,
   type ProtocolDef,
+  priorityLevel,
   type RequestDef,
   type StandardSchemaV1,
-  laneFor,
-  priorityLevel,
 } from './protocol'
 import { type PriorityLevel, type SeqLane, Session } from './session'
 import type {
@@ -198,7 +198,13 @@ class Pipe implements SignalPipe {
   }
 }
 
-function withTimeout<T>(clock: Clock, p: Promise<T>, ms: number, what: string, onTimeout?: () => void): Promise<T> {
+function withTimeout<T>(
+  clock: Clock,
+  p: Promise<T>,
+  ms: number,
+  what: string,
+  onTimeout?: () => void,
+): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const t = clock.setTimeout(() => {
       onTimeout?.()
@@ -217,8 +223,25 @@ function withTimeout<T>(clock: Clock, p: Promise<T>, ms: number, what: string, o
   })
 }
 
-function transcript(topic: Hex, signer: Hex, verifier: Hex, signerNonce: Uint8Array, verifierNonce: Uint8Array, signerHello: Uint8Array): Uint8Array {
-  return sha256(encodeCbor(['beamhop-hs/v1', topic, signer, verifier, signerNonce, verifierNonce, sha256(signerHello)]))
+function transcript(
+  topic: Hex,
+  signer: Hex,
+  verifier: Hex,
+  signerNonce: Uint8Array,
+  verifierNonce: Uint8Array,
+  signerHello: Uint8Array,
+): Uint8Array {
+  return sha256(
+    encodeCbor([
+      'beamhop-hs/v1',
+      topic,
+      signer,
+      verifier,
+      signerNonce,
+      verifierNonce,
+      sha256(signerHello),
+    ]),
+  )
 }
 
 function isIdentity(x: IdentityProvider | Identity): x is Identity {
@@ -226,7 +249,9 @@ function isIdentity(x: IdentityProvider | Identity): x is Identity {
 }
 
 /** Create and join a room. Resolves once the identity is loaded and signaling is subscribed. */
-export async function createRoom<P extends ProtocolDef = ProtocolDef>(opts: RoomOptions<P>): Promise<Room<P>> {
+export async function createRoom<P extends ProtocolDef = ProtocolDef>(
+  opts: RoomOptions<P>,
+): Promise<Room<P>> {
   const identity = isIdentity(opts.identity) ? opts.identity : await opts.identity.load()
   const room = new RoomImpl<P>(opts, identity)
   room.start()
@@ -261,7 +286,10 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
   private telemetryUnsub: Unsubscribe | null = null
   private fileSeq = 0
   private incoming = new Map<string, { file: IncomingFileImpl; from: Hex }>()
-  private pending = new Map<string, { resolve(v: unknown): void; reject(e: Error): void; to: Hex; name: string }>()
+  private pending = new Map<
+    string,
+    { resolve(v: unknown): void; reject(e: Error): void; to: Hex; name: string }
+  >()
   private handlers = new Map<string, (input: unknown, from: Hex) => unknown>()
   private actionL = new Map<string, Listeners<[unknown, Hex]>>()
   private joinL = new Listeners<[Peer]>()
@@ -292,9 +320,14 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
     }
     const factories = Array.isArray(opts.signaling) ? opts.signaling : [opts.signaling]
     const adapters = factories.map((f) => f({ identity: self }))
-    this.signaling = adapters.length === 1 ? (adapters[0] as SignalingAdapter) : unionAdapters(adapters)
+    this.signaling =
+      adapters.length === 1 ? (adapters[0] as SignalingAdapter) : unionAdapters(adapters)
     this.bus = new TelemetryBus(opts.telemetry !== false, () => this.clock.now())
-    this.store = new StateStore(self.pubkey, () => this.clock.now(), (op) => this.broadcastStateOp(op))
+    this.store = new StateStore(
+      self.pubkey,
+      () => this.clock.now(),
+      (op) => this.broadcastStateOp(op),
+    )
   }
 
   // ------------------------------------------------------------ lifecycle
@@ -314,7 +347,8 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
     await this.announce(true).catch(() => {})
     this.unsubSignal?.()
     this.telemetryUnsub?.()
-    for (const h of [this.announceTimer, this.tickTimer, this.quickAnnounce]) if (h !== null) this.clock.clearTimeout(h)
+    for (const h of [this.announceTimer, this.tickTimer, this.quickAnnounce])
+      if (h !== null) this.clock.clearTimeout(h)
     for (const [pk, e] of [...this.sessions]) {
       if (e.resumeTimer !== null) this.clock.clearTimeout(e.resumeTimer)
       e.session.close('leave')
@@ -358,7 +392,11 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
     const nonce = randomBytes(12)
     const ct = gcm(this.key, nonce).encrypt(utf8ToBytes(JSON.stringify(payload)))
     this.tel({ type: 'signal', direction: 'out', kind: 'announce' })
-    if (!leave) this.announceTimer = this.clock.setTimeout(() => void this.announce(), ANNOUNCE_INTERVAL_S * 1000)
+    if (!leave)
+      this.announceTimer = this.clock.setTimeout(
+        () => void this.announce(),
+        ANNOUNCE_INTERVAL_S * 1000,
+      )
     try {
       await this.signaling.announce(this.topic, toBase64(concatBytes(nonce, ct)))
     } catch (err) {
@@ -443,7 +481,8 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
     } catch {
       return
     }
-    if (this.left || !body || body.v !== PROTOCOL_VERSION || typeof body.tr !== 'string' || !body.m) return
+    if (this.left || !body || body.v !== PROTOCOL_VERSION || typeof body.tr !== 'string' || !body.m)
+      return
     this.tel({ type: 'signal', direction: 'in', kind: body.m.type, peer: s.from })
     if (body.tr === TR_CONTROL) {
       if (body.m.type === 'knock') {
@@ -451,7 +490,12 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
         // (e.g. the far side of a dropped relay socket): drop it so the session resumes on a fresh one.
         const e = this.sessions.get(s.from)
         const link = e?.session.link
-        if (e && link && e.session.state === 'connected' && this.clock.now() - e.attachedAt > 2000) {
+        if (
+          e &&
+          link &&
+          e.session.state === 'connected' &&
+          this.clock.now() - e.attachedAt > 2000
+        ) {
           link.kill('peer reported link down')
         }
         const a = this.attempts.get(s.from)
@@ -515,7 +559,8 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
         v.listed = false
       }
     }
-    for (const pk of new Set([...this.members.keys(), ...this.sessions.keys()])) this.refreshMember(pk)
+    for (const pk of new Set([...this.members.keys(), ...this.sessions.keys()]))
+      this.refreshMember(pk)
     if (host === this.self.pubkey) this.sendRoster()
     for (const pk of this.presence.keys()) this.ensure(pk, true)
   }
@@ -578,7 +623,14 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
     if (this.bus.enabled) {
       for (const [pk, e] of this.sessions) {
         const l = e.session.link
-        if (l) this.tel({ type: 'bytes', peer: pk, channel: 'session', sent: l.bytes.sent, received: l.bytes.received })
+        if (l)
+          this.tel({
+            type: 'bytes',
+            peer: pk,
+            channel: 'session',
+            sent: l.bytes.sent,
+            received: l.bytes.received,
+          })
       }
     }
   }
@@ -666,12 +718,22 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
       return await this.onLink(remote, link, () => this.closePipe(remote, transport.name, at))
     } catch (err) {
       this.closePipe(remote, transport.name, at)
-      this.tel({ type: 'error', peer: remote, code: `connect:${transport.name}`, message: (err as Error).message })
+      this.tel({
+        type: 'error',
+        peer: remote,
+        code: `connect:${transport.name}`,
+        message: (err as Error).message,
+      })
       return false
     }
   }
 
-  private async runResponder(remote: Hex, transport: Transport, at: string, pipe: Pipe): Promise<void> {
+  private async runResponder(
+    remote: Hex,
+    transport: Transport,
+    at: string,
+    pipe: Pipe,
+  ): Promise<void> {
     const ac = new AbortController()
     try {
       const conn = await withTimeout(
@@ -691,10 +753,17 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
         conn.close()
         return
       }
-      await this.onLink(remote, new Link(conn, transport.name, false), () => this.closePipe(remote, transport.name, at))
+      await this.onLink(remote, new Link(conn, transport.name, false), () =>
+        this.closePipe(remote, transport.name, at),
+      )
     } catch (err) {
       this.closePipe(remote, transport.name, at)
-      this.tel({ type: 'error', peer: remote, code: `accept:${transport.name}`, message: (err as Error).message })
+      this.tel({
+        type: 'error',
+        peer: remote,
+        code: `accept:${transport.name}`,
+        message: (err as Error).message,
+      })
     }
   }
 
@@ -707,8 +776,12 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
     })
     this.tel({ type: 'connection', peer: remote, state: 'connecting', path: link.path })
     try {
-      const hs = await withTimeout(this.clock, this.handshake(remote, link), this.t.handshakeMs, 'handshake', () =>
-        link.kill('handshake timeout'),
+      const hs = await withTimeout(
+        this.clock,
+        this.handshake(remote, link),
+        this.t.handshakeMs,
+        'handshake',
+        () => link.kill('handshake timeout'),
       )
       if (this.left || link.dead) {
         link.kill('left')
@@ -736,10 +809,17 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
         attestations: [...this.self.attestations],
         meta: this.opts.meta ?? {},
         ...(this.opts.capability ? { cap: this.opts.capability } : {}),
-        ...(existing ? { known: { sid: existing.session.sid, recv: existing.session.recvCursor() } } : {}),
+        ...(existing
+          ? { known: { sid: existing.session.sid, recv: existing.session.recvCursor() } }
+          : {}),
       }
       const myHello = encodeCbor(['h1', hello])
-      let theirs: { hello: Hello; bytes: Uint8Array; verified: AttestationResult[]; caps: Capability[] } | null = null
+      let theirs: {
+        hello: Hello
+        bytes: Uint8Array
+        verified: AttestationResult[]
+        caps: Capability[]
+      } | null = null
       let theirSig: Uint8Array | null = null
       let sentSig = false
       let done = false
@@ -753,7 +833,14 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
       }
       const maybeDone = () => {
         if (done || !theirs || !theirSig || !sentSig) return
-        const h = transcript(this.topic, remote, this.self.pubkey, theirs.hello.nonce, nonce, theirs.bytes)
+        const h = transcript(
+          this.topic,
+          remote,
+          this.self.pubkey,
+          theirs.hello.nonce,
+          nonce,
+          theirs.bytes,
+        )
         if (!schnorrVerify(theirSig, h, remote)) return fail('bad handshake signature')
         done = true
         unFrame()
@@ -795,7 +882,9 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
                 return fail(`rejected peer: ${res.reason}`)
               }
               theirs = { hello: h, bytes, verified: res.verified, caps: res.caps }
-              const sig = await this.self.sign(transcript(this.topic, this.self.pubkey, remote, nonce, h.nonce, myHello))
+              const sig = await this.self.sign(
+                transcript(this.topic, this.self.pubkey, remote, nonce, h.nonce, myHello),
+              )
               if (done) return
               link.send('r', FrameType.Hello, 0, encodeCbor(['h2', sig]))
               sentSig = true
@@ -815,14 +904,19 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
     })
   }
 
-  private async admit(h: Hello): Promise<{ ok: true; verified: AttestationResult[]; caps: Capability[] } | { ok: false; reason: string }> {
+  private async admit(
+    h: Hello,
+  ): Promise<
+    { ok: true; verified: AttestationResult[]; caps: Capability[] } | { ok: false; reason: string }
+  > {
     const policy = this.opts.policy ?? {}
     const atts = Array.isArray(h.attestations) ? h.attestations : []
     const verified = await Promise.all(
       atts.map((a) => verifyAttestation(a, h.pubkey, policy.jwks ? { jwks: policy.jwks } : {})),
     )
     const bad = verified.find((v) => !v.ok)
-    if (bad && !bad.ok) return { ok: false, reason: `invalid ${bad.type} attestation: ${bad.reason}` }
+    if (bad && !bad.ok)
+      return { ok: false, reason: `invalid ${bad.type} attestation: ${bad.reason}` }
     if (policy.attest) {
       const at = policy.attest
       const oidcIss = at.oidc ? (Array.isArray(at.oidc.iss) ? at.oidc.iss : [at.oidc.iss]) : []
@@ -864,7 +958,8 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
       verified: verified.filter((v) => v.ok),
       caps,
     }
-    if (policy.admit && !(await policy.admit(candidate))) return { ok: false, reason: 'denied by policy' }
+    if (policy.admit && !(await policy.admit(candidate)))
+      return { ok: false, reason: 'denied by policy' }
     return { ok: true, verified: candidate.verified, caps }
   }
 
@@ -933,7 +1028,13 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
       this.refreshMember(remote, true)
     })
     s.events.progress.add((dir, streamId, done, total) => {
-      this.tel({ type: 'progress', peer: remote, streamId: dir === 'out' ? streamId : -streamId, sent: done, total })
+      this.tel({
+        type: 'progress',
+        peer: remote,
+        streamId: dir === 'out' ? streamId : -streamId,
+        sent: done,
+        total,
+      })
     })
     s.events.bye.add((reason) => {
       if (reason === 'topology') {
@@ -955,7 +1056,8 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
       if (entry.resumeTimer !== null) this.clock.clearTimeout(entry.resumeTimer)
       entry.resumeTimer = this.clock.setTimeout(() => {
         entry.resumeTimer = null
-        if (this.sessions.get(remote) === entry && entry.session.state === 'away') this.dropSession(remote, 'timeout')
+        if (this.sessions.get(remote) === entry && entry.session.state === 'away')
+          this.dropSession(remote, 'timeout')
       }, this.t.resumeWindowMs)
       const a = this.attempts.get(remote)
       if (a) a.nextAt = 0
@@ -1057,7 +1159,13 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
       this.leaveL.emit(prev)
     } else if (prev && next) {
       this.members.set(pk, next)
-      if (update || prev.state !== next.state || prev.via !== next.via || prev.path !== next.path || prev.isHost !== next.isHost) {
+      if (
+        update ||
+        prev.state !== next.state ||
+        prev.via !== next.via ||
+        prev.path !== next.path ||
+        prev.isHost !== next.isHost
+      ) {
         this.updateL.emit(next)
       }
     }
@@ -1158,7 +1266,8 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
         const viaHost: Hex[] = []
         for (const t of targets) {
           if (t === host && hostEntry) hops.set(t, msg)
-          else if (this.sessions.get(t)?.session.state === 'connected' && !hostEntry) hops.set(t, msg)
+          else if (this.sessions.get(t)?.session.state === 'connected' && !hostEntry)
+            hops.set(t, msg)
           else viaHost.push(t)
         }
         if (viaHost.length && hostEntry) {
@@ -1167,7 +1276,8 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
         }
       }
     } else {
-      const list = targets === 'all' ? [...this.sessions.keys()] : targets.filter((t) => this.sessions.has(t))
+      const list =
+        targets === 'all' ? [...this.sessions.keys()] : targets.filter((t) => this.sessions.has(t))
       for (const t of list) hops.set(t, msg)
     }
     if (hops.size === 0) return Promise.resolve()
@@ -1192,7 +1302,9 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
       direction: 'out',
       action: m.a,
       size,
-      ...(this.opts.telemetryPayloads !== false && !m.a.startsWith('__file') ? { payload: m.d } : {}),
+      ...(this.opts.telemetryPayloads !== false && !m.a.startsWith('__file')
+        ? { payload: m.d }
+        : {}),
     })
   }
 
@@ -1211,7 +1323,9 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
       const fwd: Msg = { ...m, o: sender }
       delete fwd.t
       const lvl = this.priorityFor(m.a)
-      const dests = targets ? targets.filter((t) => t !== this.self.pubkey && t !== sender) : [...this.sessions.keys()].filter((t) => t !== sender)
+      const dests = targets
+        ? targets.filter((t) => t !== this.self.pubkey && t !== sender)
+        : [...this.sessions.keys()].filter((t) => t !== sender)
       for (const d of dests) {
         const e = this.sessions.get(d)
         if (!e) continue
@@ -1230,7 +1344,9 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
         direction: 'in',
         action: m.a,
         size: bytes.length,
-        ...(this.opts.telemetryPayloads !== false && !m.a.startsWith('__file') ? { payload: m.d } : {}),
+        ...(this.opts.telemetryPayloads !== false && !m.a.startsWith('__file')
+          ? { payload: m.d }
+          : {}),
       })
     }
     this.deliver(origin, sender, m)
@@ -1267,21 +1383,35 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
         return
     }
     if (m.a.startsWith('__')) return
-    if (m.r !== undefined) return this.onResponse(from, m)
-    if (m.q !== undefined) return this.onRequest(from, m)
+    if (m.r !== undefined) {
+      this.onResponse(from, m)
+      return
+    }
+    if (m.q !== undefined) {
+      this.onRequest(from, m)
+      return
+    }
     const def = this.opts.protocol?.[m.a] as ActionDef | undefined
     const emit = (value: unknown) => this.actionL.get(m.a)?.emit(value, from)
     if (this.opts.protocol && (!def || def.kind !== 'action')) {
       this.tel({ type: 'error', peer: from, code: 'unknown-action', message: m.a })
       return
     }
-    if (!def) return emit(m.d)
+    if (!def) {
+      emit(m.d)
+      return
+    }
     this.validateThen(def.schema, m.d, emit, (msg) =>
       this.tel({ type: 'error', peer: from, code: 'invalid-payload', message: `${m.a}: ${msg}` }),
     )
   }
 
-  private validateThen(schema: StandardSchemaV1, value: unknown, ok: (v: unknown) => void, bad: (msg: string) => void): void {
+  private validateThen(
+    schema: StandardSchemaV1,
+    value: unknown,
+    ok: (v: unknown) => void,
+    bad: (msg: string) => void,
+  ): void {
     const handle = (r: StandardSchemaV1.Result<unknown>) => {
       if (r.issues) bad(r.issues.map((i) => i.message).join('; '))
       else ok(r.value)
@@ -1293,7 +1423,8 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
 
   action<K extends string>(name: K): ActionHandle<any, any> {
     const def = this.opts.protocol?.[name] as ActionDef | undefined
-    if (this.opts.protocol && (!def || def.kind !== 'action')) throw new Error(`unknown action "${name}"`)
+    if (this.opts.protocol && (!def || def.kind !== 'action'))
+      throw new Error(`unknown action "${name}"`)
     const reliability = def?.reliability ?? { mode: 'reliable' }
     const lane = laneFor(reliability)
     const prio = def ? priorityLevel(def.priority) : 2
@@ -1305,7 +1436,13 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
           if (r.issues) throw new Error(`${name}: ${r.issues.map((i) => i.message).join('; ')}`)
           value = r.value
         }
-        await this.sendTo(this.resolveTargets(o.to), { a: name, d: value }, lane, prio, o.onProgress)
+        await this.sendTo(
+          this.resolveTargets(o.to),
+          { a: name, d: value },
+          lane,
+          prio,
+          o.onProgress,
+        )
       },
       onMessage: (cb) => {
         let l = this.actionL.get(name)
@@ -1320,7 +1457,8 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
 
   request<K extends string>(name: K): RequestHandle<any, any, any, any> {
     const def = this.opts.protocol?.[name] as RequestDef | undefined
-    if (this.opts.protocol && (!def || def.kind !== 'request')) throw new Error(`unknown request "${name}"`)
+    if (this.opts.protocol && (!def || def.kind !== 'request'))
+      throw new Error(`unknown request "${name}"`)
     const prio = def ? priorityLevel(def.priority) : 1
     return {
       call: (to, input, o = {}) =>
@@ -1344,8 +1482,13 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
             },
           })
           const go = (value: unknown) =>
-            this.sendTo([to], { a: name, d: value, q: id }, 0, prio).catch((e) => this.pending.get(id)?.reject(e))
-          if (def) this.validateThen(def.req, input, go, (msg) => this.pending.get(id)?.reject(new Error(`${name}: ${msg}`)))
+            this.sendTo([to], { a: name, d: value, q: id }, 0, prio).catch((e) =>
+              this.pending.get(id)?.reject(e),
+            )
+          if (def)
+            this.validateThen(def.req, input, go, (msg) =>
+              this.pending.get(id)?.reject(new Error(`${name}: ${msg}`)),
+            )
           else go(input)
         }),
       handle: (fn) => {
@@ -1362,13 +1505,17 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
     const reply = (res: Msg) => void this.sendTo([from], res, 0, 1).catch(() => {})
     const fail = (e: string) => reply({ a: m.a, r: m.q as string, e })
     const fn = this.handlers.get(m.a)
-    if (!fn || (this.opts.protocol && def?.kind !== 'request')) return fail('no handler')
+    if (!fn || (this.opts.protocol && def?.kind !== 'request')) {
+      fail('no handler')
+      return
+    }
     const run = async (input: unknown) => {
       try {
         let out = await fn(input, from)
         if (def) {
           const r = await def.res['~standard'].validate(out)
-          if (r.issues) return fail(`invalid response: ${r.issues.map((i) => i.message).join('; ')}`)
+          if (r.issues)
+            return fail(`invalid response: ${r.issues.map((i) => i.message).join('; ')}`)
           out = r.value
         }
         reply({ a: m.a, r: m.q as string, d: out })
@@ -1376,7 +1523,13 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
         fail((err as Error).message ?? String(err))
       }
     }
-    if (def) this.validateThen(def.req, m.d, (v) => void run(v), (msg) => fail(`invalid request: ${msg}`))
+    if (def)
+      this.validateThen(
+        def.req,
+        m.d,
+        (v) => void run(v),
+        (msg) => fail(`invalid request: ${msg}`),
+      )
     else void run(m.d)
   }
 
@@ -1384,10 +1537,21 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
     const p = this.pending.get(m.r as string)
     if (!p || p.to !== from) return
     this.pending.delete(m.r as string)
-    if (m.e !== undefined) return p.reject(new Error(m.e))
+    if (m.e !== undefined) {
+      p.reject(new Error(m.e))
+      return
+    }
     const def = this.opts.protocol?.[m.a] as RequestDef | undefined
-    if (!def) return p.resolve(m.d)
-    this.validateThen(def.res, m.d, (v) => p.resolve(v), (msg) => p.reject(new Error(`invalid response: ${msg}`)))
+    if (!def) {
+      p.resolve(m.d)
+      return
+    }
+    this.validateThen(
+      def.res,
+      m.d,
+      (v) => p.resolve(v),
+      (msg) => p.reject(new Error(`invalid response: ${msg}`)),
+    )
   }
 
   // ------------------------------------------------------------ files
@@ -1396,9 +1560,16 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
     const targets = this.resolveTargets(o.to)
     const id = randomId(8)
     const streamNo = ++this.fileSeq
-    const size = o.size ?? (source instanceof Uint8Array ? source.length : source instanceof Blob ? source.size : undefined)
+    const size =
+      o.size ??
+      (source instanceof Uint8Array
+        ? source.length
+        : source instanceof Blob
+          ? source.size
+          : undefined)
     const name = o.name ?? ((source as { name?: string }).name || 'file')
-    const mime = o.mime ?? (source instanceof Blob && source.type ? source.type : 'application/octet-stream')
+    const mime =
+      o.mime ?? (source instanceof Blob && source.type ? source.type : 'application/octet-stream')
     const acks: Promise<void>[] = []
     acks.push(this.sendTo(targets, { a: FILE_START, d: { id, name, mime, size } }, 0, 3))
     const stream: ReadableStream<Uint8Array> =
@@ -1429,7 +1600,8 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
         acks.push(this.sendTo(targets, { a: FILE_CHUNK, d: { id, b: piece } }, 0, 3))
         sent += piece.length
         o.onProgress?.(sent, size)
-        for (const h of hops()) this.tel({ type: 'progress', peer: h, streamId: streamNo, sent, total: size ?? sent })
+        for (const h of hops())
+          this.tel({ type: 'progress', peer: h, streamId: streamNo, sent, total: size ?? sent })
       }
     }
     acks.push(this.sendTo(targets, { a: FILE_END, d: { id } }, 0, 3))
@@ -1446,7 +1618,13 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
     const key = `${from}:${d.id}`
     if (m.a === FILE_START) {
       if (this.incoming.has(key)) return
-      const file = new IncomingFileImpl(d.id, from, String(d.name ?? 'file'), String(d.mime ?? 'application/octet-stream'), typeof d.size === 'number' ? d.size : undefined)
+      const file = new IncomingFileImpl(
+        d.id,
+        from,
+        String(d.name ?? 'file'),
+        String(d.mime ?? 'application/octet-stream'),
+        typeof d.size === 'number' ? d.size : undefined,
+      )
       this.incoming.set(key, { file, from })
       this.fileL.emit(file)
       return
@@ -1455,7 +1633,13 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
     if (!entry) return
     if (m.a === FILE_CHUNK && d.b instanceof Uint8Array) {
       entry.file.push(d.b)
-      this.tel({ type: 'progress', peer: from, streamId: -1, sent: entry.file.received, total: entry.file.size ?? entry.file.received })
+      this.tel({
+        type: 'progress',
+        peer: from,
+        streamId: -1,
+        sent: entry.file.received,
+        total: entry.file.size ?? entry.file.received,
+      })
     } else if (m.a === FILE_END) {
       entry.file.end()
       this.incoming.delete(key)
@@ -1472,7 +1656,12 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
     map: <V>(name: string) => this.store.map<V>(name),
     log: <V>(name: string) => this.store.log<V>(name),
     sync: async () => {
-      const targets = this.topology !== 'mesh' && !this.isHost() ? (this.hostKey ? [this.hostKey] : []) : [...this.sessions.keys()]
+      const targets =
+        this.topology !== 'mesh' && !this.isHost()
+          ? this.hostKey
+            ? [this.hostKey]
+            : []
+          : [...this.sessions.keys()]
       await this.sendTo(targets, { a: STATE_REQ }, 0, 1)
     },
     digest: () => this.store.digest(),
@@ -1491,7 +1680,12 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
       subscribe: (cb, o) => room.bus.subscribe(cb, o),
       subscribeRemote: (cb) => room.bus.subscribeRemote(cb),
       observe: async (peers?: Target) => {
-        await room.sendTo(room.resolveTargets(peers), { a: TELEMETRY_CHANNEL, d: { sub: true } }, 1, 1)
+        await room.sendTo(
+          room.resolveTargets(peers),
+          { a: TELEMETRY_CHANNEL, d: { sub: true } },
+          1,
+          1,
+        )
       },
     }
   }
@@ -1518,9 +1712,10 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
   }
 
   devtools(o: DevtoolsOptions = {}): { close(): void } {
-    const room = this
     const peersChanged = new Listeners<[]>()
-    const unsubs = [this.joinL, this.leaveL, this.updateL].map((l) => l.add(() => peersChanged.emit()))
+    const unsubs = [this.joinL, this.leaveL, this.updateL].map((l) =>
+      l.add(() => peersChanged.emit()),
+    )
     unsubs.push(this.hostL.add(() => peersChanged.emit()))
     const handle = startDevtools(
       {
@@ -1528,14 +1723,14 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
         selfKey: this.self.pubkey,
         studioPeers: () => [
           {
-            pubkey: room.self.pubkey,
+            pubkey: this.self.pubkey,
             isSelf: true,
-            isHost: room.hostKey === room.self.pubkey,
-            attestations: room.self.attestations.map((a) => a.type),
-            meta: room.opts.meta ?? {},
-            ...(typeof room.opts.meta?.name === 'string' ? { name: room.opts.meta.name } : {}),
+            isHost: this.hostKey === this.self.pubkey,
+            attestations: this.self.attestations.map((a) => a.type),
+            meta: this.opts.meta ?? {},
+            ...(typeof this.opts.meta?.name === 'string' ? { name: this.opts.meta.name } : {}),
           },
-          ...room.peers.map((p) => ({
+          ...this.peers.map((p) => ({
             pubkey: p.pubkey,
             isHost: p.isHost,
             attestations: p.attestations.map((a) => a.type),
@@ -1544,21 +1739,22 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
           })),
         ],
         onPeersChanged: (cb) => peersChanged.add(cb),
-        onTelemetry: (cb) => room.bus.subscribe(cb),
-        recentTelemetry: () => room.bus.recent(),
+        onTelemetry: (cb) => this.bus.subscribe(cb),
+        recentTelemetry: () => this.bus.recent(),
         memoryHubs: () => {
           const hubs = new Set<MemoryHub>()
-          for (const t of room.opts.transports) {
+          for (const t of this.opts.transports) {
             const hub = (t as { hub?: unknown }).hub
             if (hub instanceof MemoryHub) hubs.add(hub)
           }
           return [...hubs]
         },
         killLinks: (peer) => {
-          for (const [pk, e] of room.sessions) if (peer === 'all' || pk === peer) e.session.link?.kill('devtools fault')
+          for (const [pk, e] of this.sessions)
+            if (peer === 'all' || pk === peer) e.session.link?.kill('devtools fault')
         },
         connectionInfo: async (peer) => {
-          const link = room.sessions.get(peer)?.session.link
+          const link = this.sessions.get(peer)?.session.link
           if (!link) return null
           const st = await link.conn.stats().catch(() => null)
           return {
@@ -1586,18 +1782,18 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
           }
         },
         checkAdmission: async (id) => {
-          const r = await room.admit({
+          const r = await this.admit({
             v: PROTOCOL_VERSION,
             pubkey: id.pubkey,
             sid: '',
-            topic: room.topic,
+            topic: this.topic,
             nonce: new Uint8Array(32),
             attestations: [id.attestation],
             meta: {},
           })
           return r.ok ? { admitted: true } : { admitted: false, reason: r.reason }
         },
-        reportError: (code, message) => room.tel({ type: 'error', code, message }),
+        reportError: (code, message) => this.tel({ type: 'error', code, message }),
       },
       o,
     )
@@ -1608,7 +1804,6 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
       },
     }
   }
-
 
   readonly debug = {
     sessions: (): SessionInfo[] =>

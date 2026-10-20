@@ -15,7 +15,9 @@ export interface StandardSchemaV1<Input = unknown, Output = Input> {
 }
 
 export declare namespace StandardSchemaV1 {
-  type Result<Output> = { readonly value: Output; readonly issues?: undefined } | { readonly issues: readonly Issue[] }
+  type Result<Output> =
+    | { readonly value: Output; readonly issues?: undefined }
+    | { readonly issues: readonly Issue[] }
   interface Issue {
     readonly message: string
     readonly path?: readonly (PropertyKey | { readonly key: PropertyKey })[] | undefined
@@ -25,7 +27,9 @@ export declare namespace StandardSchemaV1 {
 
 /** Pass-through schema for untyped payloads: `action(any<MyType>())`. */
 export function any<T = unknown>(): StandardSchemaV1<T, T> {
-  return { '~standard': { version: 1, vendor: 'beamhop', validate: (value) => ({ value: value as T }) } }
+  return {
+    '~standard': { version: 1, vendor: 'beamhop', validate: (value) => ({ value: value as T }) },
+  }
 }
 
 export type Priority = 'high' | 'normal' | 'low'
@@ -38,7 +42,10 @@ export interface ActionDef<S extends StandardSchemaV1 = StandardSchemaV1> {
   readonly priority: Priority
 }
 
-export interface RequestDef<Q extends StandardSchemaV1 = StandardSchemaV1, R extends StandardSchemaV1 = StandardSchemaV1> {
+export interface RequestDef<
+  Q extends StandardSchemaV1 = StandardSchemaV1,
+  R extends StandardSchemaV1 = StandardSchemaV1,
+> {
   readonly kind: 'request'
   readonly req: Q
   readonly res: R
@@ -60,7 +67,12 @@ export function action<S extends StandardSchemaV1>(
   schema: S,
   opts: { reliability?: ReliabilityOption; priority?: Priority } = {},
 ): ActionDef<S> {
-  return { kind: 'action', schema, reliability: toReliability(opts.reliability), priority: opts.priority ?? 'normal' }
+  return {
+    kind: 'action',
+    schema,
+    reliability: toReliability(opts.reliability),
+    priority: opts.priority ?? 'normal',
+  }
 }
 
 export function request<Q extends StandardSchemaV1, R extends StandardSchemaV1>(
@@ -68,28 +80,47 @@ export function request<Q extends StandardSchemaV1, R extends StandardSchemaV1>(
   res: R,
   opts: { priority?: Priority; timeoutMs?: number } = {},
 ): RequestDef<Q, R> {
-  return { kind: 'request', req, res, priority: opts.priority ?? 'high', timeoutMs: opts.timeoutMs ?? 10_000 }
+  return {
+    kind: 'request',
+    req,
+    res,
+    priority: opts.priority ?? 'high',
+    timeoutMs: opts.timeoutMs ?? 10_000,
+  }
 }
 
 export function defineProtocol<T extends ProtocolDef>(def: T): T {
   for (const name of Object.keys(def)) {
-    if (name.startsWith('__')) throw new Error(`protocol: names starting with "__" are reserved (${name})`)
+    if (name.startsWith('__'))
+      throw new Error(`protocol: names starting with "__" are reserved (${name})`)
   }
   return def
 }
 
-export type ActionNames<P extends ProtocolDef> = { [K in keyof P]: P[K] extends ActionDef<any> ? K : never }[keyof P] & string
-export type RequestNames<P extends ProtocolDef> = { [K in keyof P]: P[K] extends RequestDef<any, any> ? K : never }[keyof P] & string
+export type ActionNames<P extends ProtocolDef> = {
+  [K in keyof P]: P[K] extends ActionDef<any> ? K : never
+}[keyof P] &
+  string
+export type RequestNames<P extends ProtocolDef> = {
+  [K in keyof P]: P[K] extends RequestDef<any, any> ? K : never
+}[keyof P] &
+  string
 
 type Out<S> = S extends StandardSchemaV1<any, infer O> ? O : unknown
 type In<S> = S extends StandardSchemaV1<infer I, any> ? I : unknown
 
-export type ActionInput<P extends ProtocolDef, K extends keyof P> = P[K] extends ActionDef<infer S> ? In<S> : unknown
-export type ActionOutput<P extends ProtocolDef, K extends keyof P> = P[K] extends ActionDef<infer S> ? Out<S> : unknown
-export type RequestInput<P extends ProtocolDef, K extends keyof P> = P[K] extends RequestDef<infer Q, any> ? In<Q> : unknown
-export type RequestOutput<P extends ProtocolDef, K extends keyof P> = P[K] extends RequestDef<infer Q, any> ? Out<Q> : unknown
-export type ResponseInput<P extends ProtocolDef, K extends keyof P> = P[K] extends RequestDef<any, infer R> ? In<R> : unknown
-export type ResponseOutput<P extends ProtocolDef, K extends keyof P> = P[K] extends RequestDef<any, infer R> ? Out<R> : unknown
+export type ActionInput<P extends ProtocolDef, K extends keyof P> =
+  P[K] extends ActionDef<infer S> ? In<S> : unknown
+export type ActionOutput<P extends ProtocolDef, K extends keyof P> =
+  P[K] extends ActionDef<infer S> ? Out<S> : unknown
+export type RequestInput<P extends ProtocolDef, K extends keyof P> =
+  P[K] extends RequestDef<infer Q, any> ? In<Q> : unknown
+export type RequestOutput<P extends ProtocolDef, K extends keyof P> =
+  P[K] extends RequestDef<infer Q, any> ? Out<Q> : unknown
+export type ResponseInput<P extends ProtocolDef, K extends keyof P> =
+  P[K] extends RequestDef<any, infer R> ? In<R> : unknown
+export type ResponseOutput<P extends ProtocolDef, K extends keyof P> =
+  P[K] extends RequestDef<any, infer R> ? Out<R> : unknown
 
 export class ValidationError extends Error {
   constructor(
@@ -101,7 +132,11 @@ export class ValidationError extends Error {
   }
 }
 
-export async function validate<S extends StandardSchemaV1>(schema: S, value: unknown, where: string): Promise<Out<S>> {
+export async function validate<S extends StandardSchemaV1>(
+  schema: S,
+  value: unknown,
+  where: string,
+): Promise<Out<S>> {
   let r = schema['~standard'].validate(value)
   if (r instanceof Promise) r = await r
   if (r.issues) throw new ValidationError(r.issues, where)

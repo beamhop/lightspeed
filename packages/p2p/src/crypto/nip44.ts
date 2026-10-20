@@ -82,7 +82,11 @@ function hmacAad(key: Uint8Array, message: Uint8Array, aad: Uint8Array): Uint8Ar
   return hmac(sha256, key, concatBytes(aad, message))
 }
 
-function decodePayload(payload: string): { nonce: Uint8Array; ciphertext: Uint8Array; mac: Uint8Array } {
+function decodePayload(payload: string): {
+  nonce: Uint8Array
+  ciphertext: Uint8Array
+  mac: Uint8Array
+} {
   if (typeof payload !== 'string') throw new Error('nip44: payload must be a string')
   const plen = payload.length
   if (plen < 132 || plen > 87472) throw new Error(`nip44: invalid payload length: ${plen}`)

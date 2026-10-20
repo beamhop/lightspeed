@@ -1,7 +1,7 @@
 // A Link is one transport Connection with the library's three channels and frame codec on top.
 import type { Channel, Connection, PathType, Reliability } from '../types'
 import { Listeners } from '../util/emitter'
-import { type Frame, FrameType, decodeFrame, encodeFrame } from '../wire'
+import { decodeFrame, encodeFrame, type Frame, type FrameType } from '../wire'
 
 export type Lane = 'r' | 'u' | 'x'
 
@@ -11,7 +11,9 @@ export const CHANNELS: Record<Lane, { label: string; reliability: Reliability }>
   x: { label: 'bh/x', reliability: { mode: 'unreliable', maxRetransmits: 0 } },
 }
 
-const LANE_BY_LABEL = new Map<string, Lane>(Object.entries(CHANNELS).map(([k, v]) => [v.label, k as Lane]))
+const LANE_BY_LABEL = new Map<string, Lane>(
+  Object.entries(CHANNELS).map(([k, v]) => [v.label, k as Lane]),
+)
 
 export const PATH_RANK: Record<PathType, number> = { direct: 3, memory: 3, turn: 2, relay: 1 }
 
@@ -52,7 +54,8 @@ export class Link {
         if (s === 'disconnected' || s === 'closed') this.kill(`connection ${s}`)
       }),
     )
-    if (conn.state === 'closed' || conn.state === 'disconnected') queueMicrotask(() => this.kill('connection closed'))
+    if (conn.state === 'closed' || conn.state === 'disconnected')
+      queueMicrotask(() => this.kill('connection closed'))
   }
 
   get path(): PathType {

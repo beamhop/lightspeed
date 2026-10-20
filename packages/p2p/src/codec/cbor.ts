@@ -57,10 +57,22 @@ class Writer {
 
   value(v: unknown, depth: number): void {
     if (depth > 64) throw new RangeError('cbor: nesting too deep')
-    if (v === null) return this.u8(0xf6)
-    if (v === undefined) return this.u8(0xf7)
-    if (v === false) return this.u8(0xf4)
-    if (v === true) return this.u8(0xf5)
+    if (v === null) {
+      this.u8(0xf6)
+      return
+    }
+    if (v === undefined) {
+      this.u8(0xf7)
+      return
+    }
+    if (v === false) {
+      this.u8(0xf4)
+      return
+    }
+    if (v === true) {
+      this.u8(0xf5)
+      return
+    }
     if (typeof v === 'number') {
       if (Number.isSafeInteger(v) && !Object.is(v, -0)) {
         if (v >= 0) this.head(0, v)
@@ -73,22 +85,31 @@ class Writer {
       }
       return
     }
-    if (typeof v === 'bigint') return this.value(Number(v), depth)
+    if (typeof v === 'bigint') {
+      this.value(Number(v), depth)
+      return
+    }
     if (typeof v === 'string') {
       const b = enc.encode(v)
       this.head(3, b.length)
-      return this.bytes(b)
+      this.bytes(b)
+      return
     }
     if (v instanceof Uint8Array) {
       this.head(2, v.length)
-      return this.bytes(v)
+      this.bytes(v)
+      return
     }
     if (ArrayBuffer.isView(v)) {
       const b = new Uint8Array(v.buffer, v.byteOffset, v.byteLength)
       this.head(2, b.length)
-      return this.bytes(b)
+      this.bytes(b)
+      return
     }
-    if (v instanceof ArrayBuffer) return this.value(new Uint8Array(v), depth)
+    if (v instanceof ArrayBuffer) {
+      this.value(new Uint8Array(v), depth)
+      return
+    }
     if (Array.isArray(v)) {
       this.head(4, v.length)
       for (const item of v) this.value(item, depth + 1)
@@ -103,7 +124,9 @@ class Writer {
       return
     }
     if (typeof v === 'object') {
-      const entries = Object.entries(v as Record<string, unknown>).filter(([, x]) => x !== undefined)
+      const entries = Object.entries(v as Record<string, unknown>).filter(
+        ([, x]) => x !== undefined,
+      )
       this.head(5, entries.length)
       for (const [k, item] of entries) {
         this.value(k, depth + 1)

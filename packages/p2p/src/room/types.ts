@@ -1,5 +1,4 @@
 import type { Capability, CapabilityToken } from '../identity/capability'
-import type { DevtoolsOptions } from './devtools'
 import type { AttestationResult, JwksResolver } from '../identity/oidc'
 import type { SharedLog, SharedMap } from '../state/store'
 import type { TelemetryBus } from '../telemetry'
@@ -14,6 +13,7 @@ import type {
   Unsubscribe,
 } from '../types'
 import type { Clock } from '../util/clock'
+import type { DevtoolsOptions } from './devtools'
 import type {
   ActionInput,
   ActionNames,
@@ -207,7 +207,12 @@ export interface Room<P extends ProtocolDef = ProtocolDef> {
   action<K extends ActionNames<P>>(name: K): ActionHandle<ActionInput<P, K>, ActionOutput<P, K>>
   request<K extends RequestNames<P>>(
     name: K,
-  ): RequestHandle<RequestInput<P, K>, RequestOutput<P, K>, ResponseInput<P, K>, ResponseOutput<P, K>>
+  ): RequestHandle<
+    RequestInput<P, K>,
+    RequestOutput<P, K>,
+    ResponseInput<P, K>,
+    ResponseOutput<P, K>
+  >
   sendFile(source: FileSource, opts?: FileSendOptions): Promise<void>
   onFile(cb: (file: IncomingFile) => void): Unsubscribe
   readonly state: RoomStateApi

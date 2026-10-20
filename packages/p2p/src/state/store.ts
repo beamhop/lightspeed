@@ -2,7 +2,7 @@
 // Ops and snapshots merge commutatively and idempotently, so replay order does not matter.
 import type { Hex, Unsubscribe } from '../types'
 import { Listeners } from '../util/emitter'
-import { type Hlc, HlcClock, compareHlc, isHlc } from './hlc'
+import { compareHlc, type Hlc, HlcClock, isHlc } from './hlc'
 
 interface MapCell {
   v?: unknown
@@ -69,7 +69,10 @@ export interface SharedLog<V = unknown> {
 export class StateStore {
   readonly clock: HlcClock
   private maps = new Map<string, Map<string, MapCell>>()
-  private logs = new Map<string, { byKey: Map<string, LogEntry>; sorted: LogEntry[] | null; seq: number }>()
+  private logs = new Map<
+    string,
+    { byKey: Map<string, LogEntry>; sorted: LogEntry[] | null; seq: number }
+  >()
   private mapL = new Map<string, Listeners<[MapChange<unknown>]>>()
   private logL = new Map<string, Listeners<[LogItem<unknown>, boolean]>>()
   readonly changed = new Listeners<[string]>()
@@ -127,7 +130,12 @@ export class StateStore {
       const cur = m.get(op.key)
       if (cur && compareHlc(cur.h, op.h) >= 0) return false
       m.set(op.key, op.d ? { d: true, h: op.h } : { v: op.v, h: op.h })
-      this.mapListeners(op.n).emit({ key: op.key, value: op.d ? undefined : op.v, deleted: !!op.d, remote })
+      this.mapListeners(op.n).emit({
+        key: op.key,
+        value: op.d ? undefined : op.v,
+        deleted: !!op.d,
+        remote,
+      })
       this.changed.emit(op.n)
       return true
     }
@@ -204,7 +212,8 @@ export class StateStore {
       get length() {
         return store.logData(name).byKey.size
       },
-      subscribe: (cb) => this.logListeners(name).add(cb as (i: LogItem<unknown>, r: boolean) => void),
+      subscribe: (cb) =>
+        this.logListeners(name).add(cb as (i: LogItem<unknown>, r: boolean) => void),
     }
   }
 

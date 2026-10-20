@@ -18,7 +18,7 @@ export type Attestation =
       /** created_at of the signed attestation event; 0 when omitted. */
       created_at?: number
     }
-  | { type: 'oidc'; /** JWS { v: 1, iss, sub, pubkey, iat, exp } */ jws: string }
+  | { type: 'oidc' /** JWS { v: 1, iss, sub, pubkey, iat, exp } */; jws: string }
 
 export interface Identity {
   /** Session pubkey used for signaling, handshakes and pair encryption. */
@@ -130,7 +130,7 @@ export type TransportSignal =
   | { type: 'candidate'; candidate: RTCIceCandidateInit | null }
   | { type: 'restart' }
   | { type: 'relay-connect'; url: string }
-  | { type: (string & {}); [k: string]: unknown }
+  | { type: string & {}; [k: string]: unknown }
 
 export interface TransportConnectOptions {
   /** Deterministic: the lower pubkey initiates. */
@@ -150,12 +150,32 @@ export interface Transport {
 // ---------------------------------------------------------------- telemetry
 
 export type TelemetryEvent =
-  | { type: 'signal'; at: number; direction: 'in' | 'out'; kind: Signal['kind'] | TransportSignal['type']; peer?: Hex }
-  | { type: 'connection'; at: number; peer: Hex; state: Connection['state'] | 'away' | 'back'; path?: PathType }
+  | {
+      type: 'signal'
+      at: number
+      direction: 'in' | 'out'
+      kind: Signal['kind'] | TransportSignal['type']
+      peer?: Hex
+    }
+  | {
+      type: 'connection'
+      at: number
+      peer: Hex
+      state: Connection['state'] | 'away' | 'back'
+      path?: PathType
+    }
   | { type: 'path'; at: number; peer: Hex; path: PathType; candidatePair?: string }
   | { type: 'bytes'; at: number; peer: Hex; channel: string; sent: number; received: number }
   | { type: 'rtt'; at: number; peer: Hex; ms: number }
-  | { type: 'message'; at: number; peer: Hex; direction: 'in' | 'out'; action: string; size: number; payload?: unknown }
+  | {
+      type: 'message'
+      at: number
+      peer: Hex
+      direction: 'in' | 'out'
+      action: string
+      size: number
+      payload?: unknown
+    }
   | { type: 'progress'; at: number; peer: Hex; streamId: number; sent: number; total: number }
   | { type: 'peer'; at: number; peer: Hex; event: 'join' | 'leave' }
   | { type: 'error'; at: number; peer?: Hex; code: string; message: string }

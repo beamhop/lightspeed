@@ -1,16 +1,20 @@
-import { encrypt as nip44Encrypt, decrypt as nip44Decrypt, getConversationKey } from '../crypto/nip44'
 import {
-  type NostrEvent,
-  type UnsignedEvent,
+  getConversationKey,
+  decrypt as nip44Decrypt,
+  encrypt as nip44Encrypt,
+} from '../crypto/nip44'
+import {
   decodeNsec,
   eventHash,
   finalizeEvent,
+  type NostrEvent,
   schnorrVerify,
+  type UnsignedEvent,
 } from '../crypto/nostr'
 import type { Attestation, Hex, IdentityProvider, Unsubscribe } from '../types'
 import { hexToBytes, randomId } from '../util/bytes'
 import { KIND_NIP46, KIND_SESSION_ATTESTATION } from '../wire'
-import { type LocalIdentity, generateSecretKey, getPublicKey, keyIdentity } from './key'
+import { generateSecretKey, getPublicKey, keyIdentity, type LocalIdentity } from './key'
 
 /** Anything that can sign Nostr events for a user key: a NIP-07 extension, an nsec, or a NIP-46 bunker. */
 export interface NostrSigner {
@@ -62,11 +66,13 @@ export function secretKeySigner(secretKey: Uint8Array): NostrSigner {
 
 // ---------------------------------------------------------------- NIP-46
 
-
 /** How NIP-46 requests reach the bunker. Wire it to any relay client (e.g. @beamhop/signaling-nostr's pool). */
 export interface Nip46Transport {
   publish(event: NostrEvent): Promise<void>
-  subscribe(filter: { kinds: number[]; '#p': Hex[] }, onEvent: (event: NostrEvent) => void): Unsubscribe
+  subscribe(
+    filter: { kinds: number[]; '#p': Hex[] },
+    onEvent: (event: NostrEvent) => void,
+  ): Unsubscribe
 }
 
 export interface Nip46Options {
@@ -80,7 +86,11 @@ export interface Nip46Options {
   timeoutMs?: number
 }
 
-export function parseBunkerUrl(url: string): { remotePubkey: Hex; relays: string[]; secret?: string } {
+export function parseBunkerUrl(url: string): {
+  remotePubkey: Hex
+  relays: string[]
+  secret?: string
+} {
   const u = new URL(url)
   if (u.protocol !== 'bunker:') throw new Error('not a bunker:// url')
   const remotePubkey = (u.hostname || u.pathname.replace(/^\/+/, '')).toLowerCase()
@@ -90,7 +100,9 @@ export function parseBunkerUrl(url: string): { remotePubkey: Hex; relays: string
 }
 
 /** NIP-46 remote signer client speaking NIP-44-encrypted kind 24133 events over `transport`. */
-export function nip46Signer(opts: Nip46Options): NostrSigner & { connect(): Promise<void>; close(): void } {
+export function nip46Signer(
+  opts: Nip46Options,
+): NostrSigner & { connect(): Promise<void>; close(): void } {
   const sk = opts.clientSecretKey ?? generateSecretKey()
   const clientPubkey = getPublicKey(sk)
   const ck = getConversationKey(sk, opts.remotePubkey)
@@ -202,7 +214,12 @@ export interface NostrIdentityProvider extends IdentityProvider {
 export function nostr(opts: NostrOptions = {}): NostrIdentityProvider {
   const signer = (): NostrSigner => {
     if ('nsec' in opts) {
-      const sk = typeof opts.nsec === 'string' ? (opts.nsec.startsWith('nsec') ? decodeNsec(opts.nsec) : hexToBytes(opts.nsec)) : opts.nsec
+      const sk =
+        typeof opts.nsec === 'string'
+          ? opts.nsec.startsWith('nsec')
+            ? decodeNsec(opts.nsec)
+            : hexToBytes(opts.nsec)
+          : opts.nsec
       return secretKeySigner(sk)
     }
     if ('bunker' in opts) return opts.bunker
@@ -218,7 +235,8 @@ export function nostr(opts: NostrOptions = {}): NostrIdentityProvider {
       const sk = generateSecretKey()
       const session = getPublicKey(sk)
       const att = await createNostrAttestation(s, session)
-      if (!verifyNostrAttestation(att, session)) throw new Error('nostr(): signer returned an invalid signature')
+      if (!verifyNostrAttestation(att, session))
+        throw new Error('nostr(): signer returned an invalid signature')
       const id = keyIdentity(sk, [att])
       return Object.assign(id, { nostrPubkey: att.pubkey })
     },

@@ -31,7 +31,15 @@ export function finalizeEvent(e: UnsignedEvent, secretKey: Uint8Array): NostrEve
   const full = { ...e, pubkey }
   const id = eventHash(full)
   const sig = bytesToHex(schnorr.sign(hexToBytes(id), secretKey, randomBytes(32)))
-  return { id, pubkey, created_at: e.created_at, kind: e.kind, tags: e.tags, content: e.content, sig }
+  return {
+    id,
+    pubkey,
+    created_at: e.created_at,
+    kind: e.kind,
+    tags: e.tags,
+    content: e.content,
+    sig,
+  }
 }
 
 export function verifyEvent(e: NostrEvent): boolean {

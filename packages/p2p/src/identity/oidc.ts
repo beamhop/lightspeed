@@ -10,7 +10,7 @@ import {
   utf8ToBytes,
 } from '../util/bytes'
 import type { LocalIdentityProvider } from './anonymous'
-import { type LocalIdentity, generateSecretKey, getPublicKey, keyIdentity } from './key'
+import { generateSecretKey, getPublicKey, keyIdentity, type LocalIdentity } from './key'
 import { verifyNostrAttestation } from './nostr'
 
 /** Payload of an attestation certificate minted by the app backend. */
@@ -84,7 +84,12 @@ function decodeJws(jws: string): {
   }
 }
 
-async function verifySig(alg: string, jwk: Jwk, input: Uint8Array, sig: Uint8Array): Promise<boolean> {
+async function verifySig(
+  alg: string,
+  jwk: Jwk,
+  input: Uint8Array,
+  sig: Uint8Array,
+): Promise<boolean> {
   try {
     if (alg === 'ES256') {
       if (jwk.kty !== 'EC' || jwk.crv !== 'P-256' || !jwk.x || !jwk.y) return false
@@ -104,7 +109,12 @@ async function verifySig(alg: string, jwk: Jwk, input: Uint8Array, sig: Uint8Arr
         false,
         ['verify'],
       )
-      return crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, sig as BufferSource, input as BufferSource)
+      return crypto.subtle.verify(
+        'RSASSA-PKCS1-v1_5',
+        key,
+        sig as BufferSource,
+        input as BufferSource,
+      )
     }
   } catch {
     return false
@@ -135,15 +145,18 @@ export async function verifyAttestationCert(
   const { header, payload, signingInput, sig } = decodeJws(jws)
   const cert = payload as Partial<AttestationCert>
   if (cert.v !== 1) throw new Error('cert: unsupported version')
-  if (typeof cert.iss !== 'string' || typeof cert.sub !== 'string') throw new Error('cert: missing iss/sub')
+  if (typeof cert.iss !== 'string' || typeof cert.sub !== 'string')
+    throw new Error('cert: missing iss/sub')
   if (cert.pubkey !== sessionPubkey) throw new Error('cert: pubkey mismatch')
   const now = opts.now ?? Math.floor(Date.now() / 1000)
   const skew = opts.skewS ?? 60
   if (typeof cert.exp !== 'number' || cert.exp + skew < now) throw new Error('cert: expired')
-  if (typeof cert.iat === 'number' && cert.iat - skew > now) throw new Error('cert: issued in the future')
+  if (typeof cert.iat === 'number' && cert.iat - skew > now)
+    throw new Error('cert: issued in the future')
   if (opts.issuers && !opts.issuers.includes(cert.iss)) throw new Error('cert: issuer not allowed')
   const alg = header.alg
-  if (alg !== 'ES256' && alg !== 'EdDSA' && alg !== 'RS256') throw new Error(`cert: unsupported alg ${alg}`)
+  if (alg !== 'ES256' && alg !== 'EdDSA' && alg !== 'RS256')
+    throw new Error(`cert: unsupported alg ${alg}`)
   const resolver = opts.jwks ?? defaultJwks()
   const { keys } = await resolver(cert.iss)
   const candidates = keys.filter((k) => (header.kid ? k.kid === header.kid : true))
@@ -202,7 +215,14 @@ export interface SignCertOptions {
 export function signAttestationCert(o: SignCertOptions): string {
   const iat = o.now ?? Math.floor(Date.now() / 1000)
   const header = { alg: o.alg, typ: 'JWT', ...(o.kid ? { kid: o.kid } : {}) }
-  const payload: AttestationCert = { v: 1, iss: o.iss, sub: o.sub, pubkey: o.pubkey, iat, exp: iat + (o.ttlS ?? 3600) }
+  const payload: AttestationCert = {
+    v: 1,
+    iss: o.iss,
+    sub: o.sub,
+    pubkey: o.pubkey,
+    iat,
+    exp: iat + (o.ttlS ?? 3600),
+  }
   const input = `${base64UrlEncode(utf8ToBytes(JSON.stringify(header)))}.${base64UrlEncode(utf8ToBytes(JSON.stringify(payload)))}`
   const bytes = utf8ToBytes(input)
   const sig =

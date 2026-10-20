@@ -1,4 +1,11 @@
-import type { Hex, Signal, SignalingAdapter, SignalingFactory, SignalingStatus, Unsubscribe } from '../types'
+import type {
+  Hex,
+  Signal,
+  SignalingAdapter,
+  SignalingFactory,
+  SignalingStatus,
+  Unsubscribe,
+} from '../types'
 import { type Clock, realClock } from '../util/clock'
 
 interface Sub {
@@ -93,7 +100,12 @@ export function memorySignaling(hub: SignalingHub): SignalingFactory {
         }
       },
       status(): SignalingStatus[] {
-        return [{ url: 'memory://hub', state: closed ? 'closed' : hub.isDown(identity.pubkey) ? 'error' : 'open' }]
+        return [
+          {
+            url: 'memory://hub',
+            state: closed ? 'closed' : hub.isDown(identity.pubkey) ? 'error' : 'open',
+          },
+        ]
       },
       async close() {
         closed = true

@@ -8,7 +8,12 @@ import { createSignalingHub, memorySignaling } from '../signaling/memory'
 import type { Hex, SignalPipe, TransportSignal } from '../types'
 import { bytesToHex, randomBytes } from '../util/bytes'
 import { Listeners } from '../util/emitter'
-import { type RelayControl, decodeRelayEnvelope, encodeRelayEnvelope, relayHelloHash } from '../wire'
+import {
+  decodeRelayEnvelope,
+  encodeRelayEnvelope,
+  type RelayControl,
+  relayHelloHash,
+} from '../wire'
 import { relayTransport } from './relay'
 
 /** Minimal data-path relay implementing the wire.ts protocol, like @beamhop/relay's /a/<appId>/data. */
@@ -21,12 +26,22 @@ function startRelay() {
     fetch(req, srv) {
       const m = /^\/a\/([^/]+)\/data$/.exec(new URL(req.url).pathname)
       if (!m) return new Response('not found', { status: 404 })
-      if (srv.upgrade(req, { data: { appId: m[1] as string, challenge: bytesToHex(randomBytes(32)), pubkey: null } })) return
+      if (
+        srv.upgrade(req, {
+          data: { appId: m[1] as string, challenge: bytesToHex(randomBytes(32)), pubkey: null },
+        })
+      )
+        return
       return new Response('upgrade failed', { status: 400 })
     },
     websocket: {
       open(ws) {
-        ws.send(JSON.stringify({ type: 'challenge', challenge: ws.data.challenge } satisfies RelayControl))
+        ws.send(
+          JSON.stringify({
+            type: 'challenge',
+            challenge: ws.data.challenge,
+          } satisfies RelayControl),
+        )
       },
       message(ws, msg) {
         if (typeof msg === 'string') {
@@ -145,7 +160,9 @@ describe('relayTransport', () => {
     const evil = { ...a, sign: async () => new Uint8Array(64) }
     const t = relayTransport({ url: relay.url })
     const [p] = pipePair()
-    await expect(t.connect('ab'.repeat(32), { initiator: true, pipe: p, local: evil })).rejects.toThrow()
+    await expect(
+      t.connect('ab'.repeat(32), { initiator: true, pipe: p, local: evil }),
+    ).rejects.toThrow()
     t.close()
   })
 
@@ -158,7 +175,9 @@ describe('relayTransport', () => {
       if (m.type === 'relay-connect') pb.send({ type: 'relay-ready' })
     })
     const ghost = await anonymous().load()
-    await expect(t.connect(ghost.pubkey, { initiator: true, pipe: pa, local: a })).rejects.toThrow('offline')
+    await expect(t.connect(ghost.pubkey, { initiator: true, pipe: pa, local: a })).rejects.toThrow(
+      'offline',
+    )
     t.close()
   })
 
@@ -197,9 +216,14 @@ describe('relayTransport', () => {
     client.onPeerUpdate((p) => states.push(p.state))
     relay.peers.get(client.self.pubkey)?.close()
     await until(() => states.includes('away'))
-    client.action('chat').send('after drop').catch(() => {})
+    client
+      .action('chat')
+      .send('after drop')
+      .catch(() => {})
     await until(() => got.includes('after drop'), 10_000)
-    await until(() => server.peers[0]?.state === 'connected' && client.peers[0]?.state === 'connected')
+    await until(
+      () => server.peers[0]?.state === 'connected' && client.peers[0]?.state === 'connected',
+    )
     expect(leaves).toEqual([])
     await client.leave()
     await server.leave()

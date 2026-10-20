@@ -8,7 +8,9 @@ export function generateSecretKey(): Uint8Array {
 }
 
 export function getPublicKey(secretKey: Uint8Array | Hex): Hex {
-  return bytesToHex(schnorr.getPublicKey(typeof secretKey === 'string' ? hexToBytes(secretKey) : secretKey))
+  return bytesToHex(
+    schnorr.getPublicKey(typeof secretKey === 'string' ? hexToBytes(secretKey) : secretKey),
+  )
 }
 
 /** An identity backed by an in-memory secp256k1 secret key (the session key). */

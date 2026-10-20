@@ -52,9 +52,15 @@ test('devtools bridge speaks the Studio protocol and drives memory-transport fau
 
   const fc = fakeChannel()
   const identities: boolean[] = []
-  const bridge = a.devtools({ createChannel: fc.create, onIdentity: (_i, r) => identities.push(r.admitted) })
+  const bridge = a.devtools({
+    createChannel: fc.create,
+    onIdentity: (_i, r) => identities.push(r.admitted),
+  })
   expect(fc.name).toBe('beamhop-devtools:lobby')
-  const hello = fc.posted.find((m) => m.type === 'hello') as unknown as { self: string; peers: { pubkey: string; isSelf?: boolean; name?: string }[] }
+  const hello = fc.posted.find((m) => m.type === 'hello') as unknown as {
+    self: string
+    peers: { pubkey: string; isSelf?: boolean; name?: string }[]
+  }
   expect(hello.self).toBe(a.self.pubkey)
   expect(hello.peers.map((p) => p.name)).toEqual(['alice', 'bob'])
   expect(hello.peers[0]?.isSelf).toBe(true)
@@ -83,7 +89,11 @@ test('devtools bridge speaks the Studio protocol and drives memory-transport fau
   await clock.until(() => a.peer(b.self.pubkey)?.state === 'connected', 30_000)
 
   // Partition and heal.
-  fc.studio({ type: 'fault', id: 'p', fault: { type: 'partition', groups: [[a.self.pubkey], [b.self.pubkey]] } })
+  fc.studio({
+    type: 'fault',
+    id: 'p',
+    fault: { type: 'partition', groups: [[a.self.pubkey], [b.self.pubkey]] },
+  })
   await clock.until(() => a.peer(b.self.pubkey)?.state === 'away')
   fc.studio({ type: 'clear-fault', id: 'p' })
   await clock.until(() => a.peer(b.self.pubkey)?.state === 'connected', 30_000)
@@ -91,16 +101,29 @@ test('devtools bridge speaks the Studio protocol and drives memory-transport fau
   // Connection info for a live link.
   fc.studio({ type: 'connection-info?', source: a.self.pubkey, peer: b.self.pubkey })
   await clock.advance(10)
-  const info = fc.posted.find((m) => m.type === 'connection-info') as unknown as { info: { path: string; channels: { label: string }[] } }
+  const info = fc.posted.find((m) => m.type === 'connection-info') as unknown as {
+    info: { path: string; channels: { label: string }[] }
+  }
   expect(info.info.path).toBe('memory')
   expect(info.info.channels.map((c) => c.label)).toEqual(['bh/r', 'bh/u', 'bh/x'])
 
   // Identity switcher: evaluated against the room policy.
   const other = await anonymous().load()
-  fc.studio({ type: 'identity', identity: { kind: 'anonymous', pubkey: other.pubkey, label: 'anon', attestation: { type: 'anonymous' } } })
+  fc.studio({
+    type: 'identity',
+    identity: {
+      kind: 'anonymous',
+      pubkey: other.pubkey,
+      label: 'anon',
+      attestation: { type: 'anonymous' },
+    },
+  })
   await clock.advance(10)
   expect(identities).toEqual([true])
-  expect(fc.posted.find((m) => m.type === 'admission')).toMatchObject({ pubkey: other.pubkey, admitted: true })
+  expect(fc.posted.find((m) => m.type === 'admission')).toMatchObject({
+    pubkey: other.pubkey,
+    admitted: true,
+  })
 
   bridge.close()
   await clock.run(a.leave())

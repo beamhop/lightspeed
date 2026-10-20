@@ -16,14 +16,16 @@ const str: StandardSchemaV1<string> = {
   '~standard': {
     version: 1,
     vendor: 'test',
-    validate: (v) => (typeof v === 'string' ? { value: v } : { issues: [{ message: 'expected string' }] }),
+    validate: (v) =>
+      typeof v === 'string' ? { value: v } : { issues: [{ message: 'expected string' }] },
   },
 }
 const num: StandardSchemaV1<number> = {
   '~standard': {
     version: 1,
     vendor: 'test',
-    validate: (v) => (typeof v === 'number' ? { value: v } : { issues: [{ message: 'expected number' }] }),
+    validate: (v) =>
+      typeof v === 'number' ? { value: v } : { issues: [{ message: 'expected number' }] },
   },
 }
 
@@ -147,8 +149,18 @@ describe('room over memory transport', () => {
     const policy = { capabilities: { issuers: [getPublicKey(appKey)], require: ['join'] } }
     const idA = await anonymous().load()
     const idS = await anonymous().load()
-    const capA = await issueCapability(appKey, { room: '*', pubkey: idA.pubkey, caps: ['join'], exp: 2_000_000_000 })
-    const capS = await issueCapability(appKey, { room: '*', pubkey: idS.pubkey, caps: ['join', 'debug'], exp: 2_000_000_000 })
+    const capA = await issueCapability(appKey, {
+      room: '*',
+      pubkey: idA.pubkey,
+      caps: ['join'],
+      exp: 2_000_000_000,
+    })
+    const capS = await issueCapability(appKey, {
+      room: '*',
+      pubkey: idS.pubkey,
+      caps: ['join', 'debug'],
+      exp: 2_000_000_000,
+    })
     const a = await join({ identity: idA, capability: capA, policy })
     const nocap = await join({ policy })
     const studio = await join({ identity: idS, capability: capS, policy })

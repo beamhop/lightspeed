@@ -183,7 +183,11 @@ export class Session {
    */
   send(
     bytes: Uint8Array,
-    o: { lane: SeqLane | 'x'; priority: PriorityLevel; onProgress?: (sent: number, total: number) => void },
+    o: {
+      lane: SeqLane | 'x'
+      priority: PriorityLevel
+      onProgress?: (sent: number, total: number) => void
+    },
   ): Promise<void> {
     if (this.closed) return Promise.reject(new Error('session closed'))
     if (o.lane === 'x') {
@@ -268,7 +272,12 @@ export class Session {
   private sendUnit(u: OutUnit): boolean {
     const link = this.link
     if (!link) return false
-    return link.send(LANE_CH[u.lane], FrameType.Data, u.streamId, encodeCbor([D_UNIT, u.lane, u.seq, u.idx, u.count, u.bytes]))
+    return link.send(
+      LANE_CH[u.lane],
+      FrameType.Data,
+      u.streamId,
+      encodeCbor([D_UNIT, u.lane, u.seq, u.idx, u.count, u.bytes]),
+    )
   }
 
   private ackUpTo(lane: SeqLane, cum: number): void {
@@ -322,7 +331,14 @@ export class Session {
       return
     }
     if (d[0] !== D_UNIT) return
-    const [, lane, seq, idx, count, bytes] = d as [number, SeqLane, number, number, number, Uint8Array]
+    const [, lane, seq, idx, count, bytes] = d as [
+      number,
+      SeqLane,
+      number,
+      number,
+      number,
+      Uint8Array,
+    ]
     if (lane !== 0 && lane !== 1) return
     const st = this.inn[lane]
     this.ackDirty[lane] = true
@@ -352,7 +368,13 @@ export class Session {
     }
   }
 
-  private deliverUnit(lane: SeqLane, streamId: number, idx: number, count: number, bytes: Uint8Array): void {
+  private deliverUnit(
+    lane: SeqLane,
+    streamId: number,
+    idx: number,
+    count: number,
+    bytes: Uint8Array,
+  ): void {
     if (count <= 1) {
       this.events.message.emit(bytes, lane)
       return

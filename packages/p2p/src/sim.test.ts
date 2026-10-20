@@ -11,7 +11,7 @@ import { createSignalingHub, memorySignaling } from './signaling/memory'
 import { createMemoryHub, memoryTransport } from './transport/memory'
 import type { Hex } from './types'
 import { bytesToHex } from './util/bytes'
-import { VirtualClock, seededRandom } from './util/clock'
+import { seededRandom, VirtualClock } from './util/clock'
 
 const proto = defineProtocol({
   chat: action(any<{ n: number; text: string }>()),
@@ -34,7 +34,12 @@ function seededKeys(seed: number, n: number): { sk: Uint8Array; pk: Hex }[] {
 function world(seed: number, topology: Topology = 'mesh') {
   const clock = new VirtualClock()
   const signaling = createSignalingHub({ clock, latencyMs: 15 })
-  const net = createMemoryHub({ clock, seed, defaults: { latencyMs: 20, jitterMs: 10, loss: 0.05 }, detectMs: 1500 })
+  const net = createMemoryHub({
+    clock,
+    seed,
+    defaults: { latencyMs: 20, jitterMs: 10, loss: 0.05 },
+    detectMs: 1500,
+  })
   const trace: string[] = []
   const rooms: R[] = []
   const chats = new Map<Hex, string[]>()
@@ -53,19 +58,25 @@ function world(seed: number, topology: Topology = 'mesh') {
     })
     const me = r.self.pubkey.slice(0, 6)
     chats.set(r.self.pubkey, [])
-    r.action('chat').onMessage((m, from) => chats.get(r.self.pubkey)?.push(`${from.slice(0, 6)}:${m.n}`))
+    r.action('chat').onMessage((m, from) =>
+      chats.get(r.self.pubkey)?.push(`${from.slice(0, 6)}:${m.n}`),
+    )
     r.onPeerLeave((p) => leaves.push(`${me}<-${p.pubkey.slice(0, 6)}`))
     r.telemetry.subscribe((e) => {
       if (e.type === 'peer') trace.push(`${e.at} ${me} peer ${e.event} ${e.peer.slice(0, 6)}`)
-      else if (e.type === 'connection') trace.push(`${e.at} ${me} conn ${e.state} ${e.peer.slice(0, 6)}`)
-      else if (e.type === 'message' && !e.action.startsWith('__')) trace.push(`${e.at} ${me} msg ${e.direction} ${e.action} ${e.peer.slice(0, 6)}`)
+      else if (e.type === 'connection')
+        trace.push(`${e.at} ${me} conn ${e.state} ${e.peer.slice(0, 6)}`)
+      else if (e.type === 'message' && !e.action.startsWith('__'))
+        trace.push(`${e.at} ${me} msg ${e.direction} ${e.action} ${e.peer.slice(0, 6)}`)
       else if (e.type === 'host') trace.push(`${e.at} ${me} host ${e.host?.slice(0, 6)}`)
     })
     rooms.push(r)
     return r
   }
   const meshComplete = (rs: R[]) =>
-    rs.every((r) => r.peers.length === rs.length - 1 && r.peers.every((p) => p.state === 'connected'))
+    rs.every(
+      (r) => r.peers.length === rs.length - 1 && r.peers.every((p) => p.state === 'connected'),
+    )
   const converged = (rs: R[]) => rs.every((r) => r.state.digest() === rs[0]?.state.digest())
   return { clock, signaling, net, trace, rooms, chats, leaves, join, meshComplete, converged }
 }
@@ -82,7 +93,9 @@ async function meshScenario(seed: number) {
   await clock.until(() => w.meshComplete(peers), 20_000)
 
   // 2. chat: everyone sends, everyone else receives exactly once
-  await clock.run(Promise.all(peers.map((r, i) => r.action('chat').send({ n: i, text: `hi from ${i}` }))))
+  await clock.run(
+    Promise.all(peers.map((r, i) => r.action('chat').send({ n: i, text: `hi from ${i}` }))),
+  )
   await clock.until(() => peers.every((r) => w.chats.get(r.self.pubkey)?.length === 4))
 
   // 3. state: LWW map with concurrent writes to the same key + an append-only log
@@ -104,13 +117,20 @@ async function meshScenario(seed: number) {
   void p2.action('chat').send({ n: 100, text: 'during partition' })
   p0.state.map<number>('scores').set('p0', 999)
   p3.state.log<string>('events').append('partitioned write')
-  await clock.until(() => p0.peers.some((p) => p.pubkey === p2.self.pubkey && p.state === 'away'), 10_000)
+  await clock.until(
+    () => p0.peers.some((p) => p.pubkey === p2.self.pubkey && p.state === 'away'),
+    10_000,
+  )
   await clock.advance(3000)
   net.heal()
   await clock.until(() => w.meshComplete(peers), 30_000)
   await clock.until(() => w.converged(peers), 10_000)
   expect(w.leaves.length).toBe(leavesBefore) // away/back, never leave/join
-  await clock.until(() => peers.filter((r) => r !== p2).every((r) => w.chats.get(r.self.pubkey)?.includes(`${p2.self.pubkey.slice(0, 6)}:100`)))
+  await clock.until(() =>
+    peers
+      .filter((r) => r !== p2)
+      .every((r) => w.chats.get(r.self.pubkey)?.includes(`${p2.self.pubkey.slice(0, 6)}:100`)),
+  )
   for (const r of peers) {
     const got = w.chats.get(r.self.pubkey) ?? []
     expect(new Set(got).size).toBe(got.length) // exactly once
@@ -137,7 +157,11 @@ async function meshScenario(seed: number) {
   })
   const progress: number[] = []
   const recvProgress: number[] = []
-  const sending = p1.sendFile(data, { to: p5.self.pubkey, name: 'blob.bin', onProgress: (sent) => progress.push(sent) })
+  const sending = p1.sendFile(data, {
+    to: p5.self.pubkey,
+    name: 'blob.bin',
+    onProgress: (sent) => progress.push(sent),
+  })
   await clock.until(() => incoming !== null)
   const file = incoming as unknown as IncomingFile
   file.onProgress((n) => recvProgress.push(n))
@@ -181,14 +205,22 @@ async function starScenario(seed: number) {
   // Client → host → other clients, origin preserved.
   const c1 = clients[0] as R
   await clock.run(c1.action('chat').send({ n: 1, text: 'via host' }))
-  await clock.until(() => peers.filter((r) => r !== c1).every((r) => w.chats.get(r.self.pubkey)?.includes(`${c1.self.pubkey.slice(0, 6)}:1`)))
+  await clock.until(() =>
+    peers
+      .filter((r) => r !== c1)
+      .every((r) => w.chats.get(r.self.pubkey)?.includes(`${c1.self.pubkey.slice(0, 6)}:1`)),
+  )
 
   // Directed message between two clients goes through the host.
   const c2 = clients[1] as R
   await clock.run(c1.action('chat').send({ n: 2, text: 'dm' }, { to: c2.self.pubkey }))
-  await clock.until(() => w.chats.get(c2.self.pubkey)?.includes(`${c1.self.pubkey.slice(0, 6)}:2`) ?? false)
+  await clock.until(
+    () => w.chats.get(c2.self.pubkey)?.includes(`${c1.self.pubkey.slice(0, 6)}:2`) ?? false,
+  )
   await clock.advance(500)
-  expect(w.chats.get((clients[2] as R).self.pubkey)).not.toContain(`${c1.self.pubkey.slice(0, 6)}:2`)
+  expect(w.chats.get((clients[2] as R).self.pubkey)).not.toContain(
+    `${c1.self.pubkey.slice(0, 6)}:2`,
+  )
 
   for (const [i, r] of peers.entries()) r.state.map<number>('m').set(`k${i}`, i)
   await clock.until(() => w.converged(peers))
@@ -198,13 +230,43 @@ async function starScenario(seed: number) {
   await clock.run(host.leave())
   const rest = clients
   const next = rest[0] as R
-  await clock.until(() => rest.every((r) => r.host === next.self.pubkey && r.peers.length === 3 && r.peers.every((p) => p.state === 'connected')) && rest.slice(1).every((c) => c.debug.sessions().some((s) => s.remote === next.self.pubkey && s.state === 'connected')) && next.debug.sessions().filter((s) => s.state === 'connected').length === 3, 30_000)
+  await clock.until(
+    () =>
+      rest.every(
+        (r) =>
+          r.host === next.self.pubkey &&
+          r.peers.length === 3 &&
+          r.peers.every((p) => p.state === 'connected'),
+      ) &&
+      rest
+        .slice(1)
+        .every((c) =>
+          c.debug.sessions().some((s) => s.remote === next.self.pubkey && s.state === 'connected'),
+        ) &&
+      next.debug.sessions().filter((s) => s.state === 'connected').length === 3,
+    30_000,
+  )
   // Only the old host was reported as leaving, once per remaining peer.
-  expect(w.leaves.slice(leavesBefore).filter((l) => !l.startsWith(host.self.pubkey.slice(0, 6))).sort()).toEqual(rest.map((r) => `${r.self.pubkey.slice(0, 6)}<-${host.self.pubkey.slice(0, 6)}`).sort())
-  for (const c of rest.slice(1)) expect(c.debug.sessions().filter((s) => s.state === 'connected').map((s) => s.remote)).toEqual([next.self.pubkey])
+  expect(
+    w.leaves
+      .slice(leavesBefore)
+      .filter((l) => !l.startsWith(host.self.pubkey.slice(0, 6)))
+      .sort(),
+  ).toEqual(rest.map((r) => `${r.self.pubkey.slice(0, 6)}<-${host.self.pubkey.slice(0, 6)}`).sort())
+  for (const c of rest.slice(1))
+    expect(
+      c.debug
+        .sessions()
+        .filter((s) => s.state === 'connected')
+        .map((s) => s.remote),
+    ).toEqual([next.self.pubkey])
   const c3 = rest[2] as R
   await clock.run(c3.action('chat').send({ n: 3, text: 'after handoff' }))
-  await clock.until(() => rest.filter((r) => r !== c3).every((r) => w.chats.get(r.self.pubkey)?.includes(`${c3.self.pubkey.slice(0, 6)}:3`)))
+  await clock.until(() =>
+    rest
+      .filter((r) => r !== c3)
+      .every((r) => w.chats.get(r.self.pubkey)?.includes(`${c3.self.pubkey.slice(0, 6)}:3`)),
+  )
   c3.state.map<number>('m').set('after', 1)
   await clock.until(() => w.converged(rest) && next.state.map('m').get('after') === 1)
   for (const r of rest) await clock.run(r.leave())
@@ -229,7 +291,6 @@ describe('simulator (seeded, deterministic)', () => {
     const n = Number(process.env.SIM_SEEDS ?? 3)
     for (let seed = 7; seed < 7 + n; seed++) await starScenario(seed)
   }, 300_000)
-
 
   test('kill + revive: a crashed peer comes back without leave/join', async () => {
     const w = world(3)
