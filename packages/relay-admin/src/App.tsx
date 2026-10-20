@@ -5,7 +5,7 @@ import { ConfirmDialog, RevealOnceModal, Toasts } from './components/Dialogs'
 import { Layout } from './components/Layout'
 import { MascotMessage } from './components/Mascot'
 import { Link } from './components/ui'
-import { api, stats } from './ctx'
+import { api, rememberMockAuth, stats } from './ctx'
 import { currentPath, matchRoute } from './router'
 import { Admins } from './screens/Admins'
 import { AppDetail, AppsList } from './screens/Apps'
@@ -55,8 +55,13 @@ export function boot(): void {
       session.value = null
     })
   effect(() => {
-    if (session.value) stats.start()
-    else if (session.value === null) stats.stop()
+    if (session.value) {
+      rememberMockAuth(true)
+      stats.start()
+    } else if (session.value === null) {
+      rememberMockAuth(false)
+      stats.stop()
+    }
   })
 }
 

@@ -271,7 +271,7 @@ export function Tabs<T extends string>({
   onChange: (t: T) => void
 }) {
   return (
-    <div class="-mx-4 px-4 overflow-x-auto" role="tablist">
+    <div class="-mx-4 px-4 overflow-x-auto [scrollbar-width:none]" role="tablist">
       <div class="flex gap-1 border-b border-line min-w-max">
         {tabs.map((t) => (
           <button

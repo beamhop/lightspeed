@@ -16,7 +16,26 @@ const loc =
   typeof location !== 'undefined' ? location : { search: '', protocol: 'http:', host: 'localhost' }
 
 export const isMock = detectMock(loc.search, env)
-export const mock = isMock ? createMockApi({ latencyMs: 150 }) : null
+const MOCK_AUTH_KEY = 'bh-admin-mock-signed-in'
+
+function readMockAuth(): boolean {
+  try {
+    return sessionStorage.getItem(MOCK_AUTH_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+/** Mock state is in memory; remember the sign-in per tab so reloads keep you on the page. */
+export function rememberMockAuth(on: boolean): void {
+  if (!isMock) return
+  try {
+    if (on) sessionStorage.setItem(MOCK_AUTH_KEY, '1')
+    else sessionStorage.removeItem(MOCK_AUTH_KEY)
+  } catch {}
+}
+
+export const mock = isMock ? createMockApi({ latencyMs: 150, signedIn: readMockAuth() }) : null
 
 export const api = createApi({
   ...(mock ? { fetch: mock.fetch } : {}),

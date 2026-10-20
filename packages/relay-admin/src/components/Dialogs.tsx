@@ -138,7 +138,7 @@ export function Toasts() {
   const list = toasts.value
   return (
     <div
-      class="fixed z-[60] left-0 right-0 bottom-20 md:bottom-4 md:left-auto md:right-4 flex flex-col items-center md:items-end gap-2 px-3 pointer-events-none"
+      class="fixed z-[60] left-0 right-0 top-14 md:top-auto md:bottom-4 md:left-auto md:right-4 flex flex-col items-center md:items-end gap-2 px-3 pointer-events-none"
       aria-live="polite"
     >
       {list.map((t) => (

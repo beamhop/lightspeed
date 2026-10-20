@@ -94,9 +94,11 @@ function SettingsForm({ saved, onSaved }: { saved: SettingsT; onSaved: (s: Setti
     <div class="grid lg:grid-cols-2 gap-4">
       <Card title="Listeners and ports">
         <div class="grid grid-cols-2 gap-3">
-          <Field label="Public URL">
-            <Input value={s.publicUrl} onValue={(v) => setS({ ...s, publicUrl: v })} />
-          </Field>
+          <div class="col-span-2">
+            <Field label="Public URL">
+              <Input value={s.publicUrl} onValue={(v) => setS({ ...s, publicUrl: v })} />
+            </Field>
+          </div>
           <Field label="HTTPS / WSS">
             <Input
               type="number"

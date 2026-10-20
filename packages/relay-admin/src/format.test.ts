@@ -53,6 +53,7 @@ describe('formatters', () => {
   test('shortHex, percent', () => {
     expect(shortHex('a'.repeat(64))).toBe('aaaaaaaa…aaaa')
     expect(shortHex('abc')).toBe('abc')
+    expect(shortHex('0123456789abcdef', 4, 0)).toBe('0123…')
     expect(percent(50, 200)).toBe(25)
     expect(percent(5, 0)).toBe(0)
     expect(percent(500, 100)).toBe(100)

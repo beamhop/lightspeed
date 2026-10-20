@@ -73,7 +73,7 @@ export function formatDate(ts: number | null | undefined): string {
 export function shortHex(hex: string | null | undefined, head = 8, tail = 4): string {
   if (!hex) return '—'
   if (hex.length <= head + tail + 1) return hex
-  return `${hex.slice(0, head)}…${hex.slice(-tail)}`
+  return `${hex.slice(0, head)}…${tail > 0 ? hex.slice(-tail) : ''}`
 }
 
 export function formatSats(n: number | null | undefined): string {
