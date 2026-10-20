@@ -9,6 +9,7 @@ import {
   concatBytes,
   utf8ToBytes,
 } from '../util/bytes'
+import type { LocalIdentityProvider } from './anonymous'
 import { type LocalIdentity, generateSecretKey, getPublicKey, keyIdentity } from './key'
 import { verifyNostrAttestation } from './nostr'
 
@@ -244,7 +245,7 @@ export interface OidcOptions {
   secretKey?: Uint8Array
 }
 
-export function oidc(opts: OidcOptions): IdentityProvider & { load(): Promise<LocalIdentity> } {
+export function oidc(opts: OidcOptions): LocalIdentityProvider {
   return {
     kind: 'oidc',
     async load() {

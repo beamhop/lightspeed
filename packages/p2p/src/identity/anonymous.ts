@@ -70,9 +70,11 @@ export interface AnonymousOptions {
 }
 
 /** Ephemeral secp256k1 identity, optionally persisted in IndexedDB. */
-export function anonymous(opts: AnonymousOptions = {}): IdentityProvider & {
+export interface LocalIdentityProvider extends IdentityProvider {
   load(): Promise<LocalIdentity>
-} {
+}
+
+export function anonymous(opts: AnonymousOptions = {}): LocalIdentityProvider {
   return {
     kind: 'anonymous',
     async load() {

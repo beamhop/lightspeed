@@ -195,9 +195,11 @@ export type NostrOptions =
  * Nostr identity: a fresh session key vouched for by the user's Nostr key (NIP-07 extension, nsec or
  * NIP-46 bunker). Peers see the session pubkey plus a `nostr` attestation naming the user pubkey.
  */
-export function nostr(opts: NostrOptions = {}): IdentityProvider & {
+export interface NostrIdentityProvider extends IdentityProvider {
   load(): Promise<LocalIdentity & { nostrPubkey: Hex }>
-} {
+}
+
+export function nostr(opts: NostrOptions = {}): NostrIdentityProvider {
   const signer = (): NostrSigner => {
     if ('nsec' in opts) {
       const sk = typeof opts.nsec === 'string' ? (opts.nsec.startsWith('nsec') ? decodeNsec(opts.nsec) : hexToBytes(opts.nsec)) : opts.nsec

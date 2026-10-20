@@ -84,6 +84,21 @@ export class VirtualClock implements Clock {
     await flush()
   }
 
+  /** Advance time until `p` settles; returns its value (or throws its error). */
+  async run<T>(p: Promise<T>, maxMs = 60_000, stepMs = 10): Promise<T> {
+    let settled = false
+    p.then(
+      () => {
+        settled = true
+      },
+      () => {
+        settled = true
+      },
+    )
+    await this.until(() => settled, maxMs, stepMs)
+    return p
+  }
+
   /** Advance in steps until `pred()` holds; throws after `maxMs` of virtual time. */
   async until(pred: () => boolean, maxMs = 60_000, stepMs = 10): Promise<number> {
     const start = this.t
