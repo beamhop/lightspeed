@@ -1,0 +1,15 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.1.1/schema.json",
+  "changelog": "@changesets/cli/changelog",
+  "commit": false,
+  "fixed": [],
+  "linked": [
+    ["@beamhop/p2p", "@beamhop/signaling-nostr", "@beamhop/react"],
+    ["@beamhop/relay", "@beamhop/nostr-relay", "@beamhop/turn", "@beamhop/relay-admin"]
+  ],
+  "access": "public",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "ignore": ["@beamhop/demo", "@beamhop/docs"],
+  "privatePackages": { "version": false, "tag": false }
+}

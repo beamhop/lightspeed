@@ -1,0 +1,164 @@
+name: Release
+
+# Two release trains:
+# - npm packages: on every push to main, changesets/action opens a "release packages" PR; merging it
+#   publishes changed packages to npm with provenance.
+# - relay: pushing a tag `relay-vX.Y.Z` builds compiled relay binaries and the Docker image.
+
+on:
+  push:
+    branches: [main]
+    tags: ['relay-v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  npm:
+    name: Changesets (npm)
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: release-npm
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write # npm provenance
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - run: bun install --frozen-lockfile
+      - name: Create release PR or publish
+        uses: changesets/action@v1
+        with:
+          version: bunx @changesets/cli version
+          publish: bun .github/scripts/publish.ts
+          commit: 'chore: release packages'
+          title: 'chore: release packages'
+          createGithubReleases: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: 'true'
+
+  relay-binaries:
+    name: Relay binary (${{ matrix.name }})
+    if: startsWith(github.ref, 'refs/tags/relay-v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            target: bun-linux-x64
+          - name: linux-arm64
+            target: bun-linux-arm64
+          - name: darwin-arm64
+            target: bun-darwin-arm64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Build admin UI (embedded in the binary)
+        run: |
+          if grep -q '"build"' packages/relay-admin/package.json; then
+            bun run --cwd packages/relay-admin build
+          fi
+      - name: Resolve relay entry point
+        id: entry
+        run: |
+          entry=$(bun -e '
+            const p = require("./packages/relay/package.json")
+            const bin = typeof p.bin === "string" ? p.bin : Object.values(p.bin ?? {})[0]
+            console.log("packages/relay/" + String(bin ?? "src/index.ts").replace(/^\.\//, ""))
+          ')
+          echo "path=$entry" >> "$GITHUB_OUTPUT"
+      - name: Compile
+        run: |
+          mkdir -p out
+          bun build --compile --minify --sourcemap \
+            --target=${{ matrix.target }} \
+            ${{ steps.entry.outputs.path }} \
+            --outfile out/beamhop-relay-${{ matrix.name }}
+          (cd out && sha256sum beamhop-relay-${{ matrix.name }} > beamhop-relay-${{ matrix.name }}.sha256)
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: out/beamhop-relay-${{ matrix.name }}
+      - name: Upload to the GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            out/beamhop-relay-${{ matrix.name }}
+            out/beamhop-relay-${{ matrix.name }}.sha256
+          generate_release_notes: true
+
+  relay-image:
+    name: Relay Docker image
+    if: startsWith(github.ref, 'refs/tags/relay-v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/beamhop/relay
+          tags: |
+            type=match,pattern=relay-v(\d+\.\d+\.\d+.*),group=1
+            type=match,pattern=relay-v(\d+\.\d+),group=1
+            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+          labels: |
+            org.opencontainers.image.title=beamhop-relay
+            org.opencontainers.image.licenses=AGPL-3.0-only
+      - name: Build and push
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: true
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Attest image
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/beamhop/relay
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true

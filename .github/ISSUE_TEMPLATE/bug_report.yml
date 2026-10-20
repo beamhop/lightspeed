@@ -1,0 +1,55 @@
+name: Bug report
+description: Something in the library, relay, Studio, demo or docs does not work as documented.
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. For connection problems, please paste the demo's or Studio's
+        **Debug drawer** contents: they show paths, states and signaling events without message
+        contents. Security issues go to the private advisory form, not here.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - '@beamhop/p2p (library)'
+        - '@beamhop/signaling-nostr'
+        - '@beamhop/react'
+        - 'Relay (beamhop-relay, nostr-relay, turn, admin UI)'
+        - Studio
+        - CLI
+        - Demo
+        - Docs
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Package versions, or the relay version from `beamhop-relay --version`.
+      placeholder: '@beamhop/p2p 0.3.1, relay 0.2.0'
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: A minimal room config or script is ideal.
+      render: ts
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: Browsers/OS of each peer, network type (home, mobile, corporate), relay setup.
+  - type: textarea
+    id: debug
+    attributes:
+      label: Debug drawer / logs
+      render: text

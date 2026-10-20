@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://beamhop.github.io/lightspeed/
+    about: Guides, the relay operator manual and the protocol spec.
+  - name: Troubleshooting connections
+    url: https://beamhop.github.io/lightspeed/troubleshooting/
+    about: NAT types, TURN diagnosis, Safari quirks and relay reachability.
+  - name: Report a security vulnerability
+    url: https://github.com/beamhop/lightspeed/security/advisories/new
+    about: Please report vulnerabilities privately.

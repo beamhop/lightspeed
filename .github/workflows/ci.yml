@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  ASTRO_TELEMETRY_DISABLED: '1'
+
+jobs:
+  check:
+    name: Lint, typecheck, test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install
+        run: bun install --frozen-lockfile
+      - name: Biome
+        run: bunx biome ci .
+      - name: Typecheck (tsc per package)
+        run: |
+          status=0
+          for dir in packages/* apps/demo; do
+            [ -f "$dir/tsconfig.json" ] || continue
+            echo "::group::tsc -p $dir"
+            bunx tsc --noEmit -p "$dir" || status=1
+            echo "::endgroup::"
+          done
+          exit $status
+      - name: Unit tests
+        run: bun test
+      - name: Workflow and release script checks
+        run: bun test ./.github
+
+  build:
+    name: Build demo and docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run --cwd apps/demo build
+      - run: bun run --cwd apps/docs build
+
+  e2e:
+    name: Demo e2e (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Install Chromium
+        working-directory: apps/demo
+        run: bunx playwright install --with-deps chromium
+      - name: Run Playwright
+        working-directory: apps/demo
+        run: bunx playwright test
+      - name: Upload report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            apps/demo/playwright-report
+            apps/demo/test-results
+          retention-days: 7
