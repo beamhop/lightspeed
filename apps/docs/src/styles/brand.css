@@ -1,0 +1,94 @@
+/* Beamhop palette for Starlight. Values mirror packages/ui/src/tokens.css. */
+:root {
+  --bh-midnight: #0b0e1a;
+  --bh-surface: #141829;
+  --bh-surface-raised: #1c2138;
+  --bh-border: #2a3050;
+  --bh-text: #e8eaf6;
+  --bh-text-muted: #9aa0c3;
+  --bh-teal: #5eead4;
+  --bh-violet: #8b7bff;
+
+  --sl-font: "Inter", system-ui, sans-serif;
+  --sl-font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* Dark (default look of the brand) */
+:root,
+:root[data-theme="dark"] {
+  --sl-color-accent-low: #12302e;
+  --sl-color-accent: #2dd4bf;
+  --sl-color-accent-high: #99f6e4;
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #e8eaf6;
+  --sl-color-gray-2: #c5c9e4;
+  --sl-color-gray-3: #9aa0c3;
+  --sl-color-gray-4: #5d6491;
+  --sl-color-gray-5: #2a3050;
+  --sl-color-gray-6: #1c2138;
+  --sl-color-black: #0b0e1a;
+  --sl-color-bg-nav: #0f1322;
+  --sl-color-bg-sidebar: #0b0e1a;
+  --sl-color-hairline: #2a3050;
+  --sl-color-hairline-light: #1c2138;
+}
+
+:root[data-theme="light"] {
+  --sl-color-accent-low: #d5f7f1;
+  --sl-color-accent: #0f766e;
+  --sl-color-accent-high: #0b3d3a;
+  --sl-color-white: #0b0e1a;
+  --sl-color-gray-1: #1c2138;
+  --sl-color-gray-2: #2a3050;
+  --sl-color-gray-3: #4b527a;
+  --sl-color-gray-4: #7d84ad;
+  --sl-color-gray-5: #c5c9e4;
+  --sl-color-gray-6: #eceef8;
+  --sl-color-gray-7: #f6f7fc;
+  --sl-color-black: #ffffff;
+}
+
+.site-title {
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.site-title img {
+  height: 2rem;
+  width: auto;
+}
+
+/* Landing page */
+.hero .tagline {
+  max-width: 38rem;
+}
+
+.wordmark {
+  font-size: clamp(2.2rem, 6vw, 3.6rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+.wordmark .beam {
+  color: var(--sl-color-white);
+}
+
+.wordmark .speed {
+  background: linear-gradient(90deg, var(--bh-teal), var(--bh-violet));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.demo-frame {
+  width: 100%;
+  height: min(720px, 80vh);
+  border: 1px solid var(--sl-color-hairline);
+  border-radius: 16px;
+  background: var(--bh-midnight);
+}
+
+.path-badges code {
+  white-space: nowrap;
+}
