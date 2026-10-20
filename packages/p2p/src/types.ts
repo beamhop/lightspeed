@@ -10,7 +10,14 @@ export type Unsubscribe = () => void
 
 export type Attestation =
   | { type: 'anonymous' }
-  | { type: 'nostr'; pubkey: Hex; /** NIP-26-free: session key signed by the nostr key */ sig: Hex }
+  | {
+      type: 'nostr'
+      pubkey: Hex
+      /** NIP-26-free: session key signed by the nostr key (event kind KIND_SESSION_ATTESTATION). */
+      sig: Hex
+      /** created_at of the signed attestation event; 0 when omitted. */
+      created_at?: number
+    }
   | { type: 'oidc'; /** JWS { v: 1, iss, sub, pubkey, iat, exp } */ jws: string }
 
 export interface Identity {
@@ -131,6 +138,8 @@ export interface TransportConnectOptions {
   pipe: SignalPipe
   local: Identity
   signal?: AbortSignal
+  /** ICE servers configured on the room (createRoom({ iceServers })); transports may ignore it. */
+  iceServers?: RTCIceServer[]
 }
 
 export interface Transport {
@@ -149,3 +158,5 @@ export type TelemetryEvent =
   | { type: 'message'; at: number; peer: Hex; direction: 'in' | 'out'; action: string; size: number; payload?: unknown }
   | { type: 'progress'; at: number; peer: Hex; streamId: number; sent: number; total: number }
   | { type: 'peer'; at: number; peer: Hex; event: 'join' | 'leave' }
+  | { type: 'error'; at: number; peer?: Hex; code: string; message: string }
+  | { type: 'host'; at: number; host: Hex | null }
