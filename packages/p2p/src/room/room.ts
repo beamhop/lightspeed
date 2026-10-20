@@ -146,6 +146,7 @@ interface SessionEntry {
   caps: Capability[]
   transport: string | null
   resumeTimer: unknown
+  unwantedSince?: number | null
 }
 
 interface Presence {
@@ -162,6 +163,8 @@ interface VirtualPeer {
   attestations: Attestation[]
   caps: Capability[]
   confirmedAt: number
+  /** Listed in the current host's latest roster. */
+  listed: boolean
 }
 
 interface AttemptState {
@@ -497,7 +500,10 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
     this.hostL.emit(host)
     if (prev !== null) {
       // Roster entries from the previous host get a grace period to be confirmed by the new one.
-      for (const v of this.virtual.values()) v.confirmedAt = this.clock.now()
+      for (const v of this.virtual.values()) {
+        v.confirmedAt = this.clock.now()
+        v.listed = false
+      }
     }
     for (const pk of new Set([...this.members.keys(), ...this.sessions.keys()])) this.refreshMember(pk)
     if (host === this.self.pubkey) this.sendRoster()
@@ -536,11 +542,25 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
     }
     if (changed) this.recomputeHost()
     for (const pk of this.presence.keys()) this.ensure(pk, false)
+    // Star: prune direct sessions the topology no longer wants (e.g. made before the host was known).
+    if (this.topology !== 'mesh') {
+      for (const [pk, e] of [...this.sessions]) {
+        if (this.wanted(pk) || e.session.state !== 'connected') {
+          e.unwantedSince = null
+          continue
+        }
+        e.unwantedSince ??= now
+        if (now - e.unwantedSince >= 2 * this.t.tickMs) {
+          e.session.sendBye('topology')
+          this.demote(pk)
+          this.dropSession(pk, 'topology')
+        }
+      }
+    }
     // Virtual (roster) peers that nobody confirms anymore.
     for (const [pk, v] of [...this.virtual]) {
-      const stale = now - v.confirmedAt > this.t.resumeWindowMs
-      const hostGone = this.hostKey === this.self.pubkey && now - v.confirmedAt > this.t.connectMs
-      if (stale || hostGone || !this.presence.has(pk)) {
+      const stale = !v.listed && now - v.confirmedAt > this.t.resumeWindowMs
+      if (stale || !this.presence.has(pk)) {
         this.virtual.delete(pk)
         this.refreshMember(pk)
       }
@@ -903,7 +923,13 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
     s.events.progress.add((dir, streamId, done, total) => {
       this.tel({ type: 'progress', peer: remote, streamId: dir === 'out' ? streamId : -streamId, sent: done, total })
     })
-    s.events.bye.add(() => {
+    s.events.bye.add((reason) => {
+      if (reason === 'topology') {
+        // The peer pruned a session the star topology doesn't need; it stays a member via the host.
+        this.demote(remote)
+        this.dropSession(remote, 'topology')
+        return
+      }
       this.presence.delete(remote)
       this.virtual.delete(remote)
       this.dropSession(remote, 'left')
@@ -947,6 +973,20 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
     }
     this.refreshMember(remote)
     if (this.isHost()) this.sendRoster()
+  }
+
+  /** Keep a peer as a roster member while its direct session is dropped for topology reasons. */
+  private demote(remote: Hex): void {
+    const e = this.sessions.get(remote)
+    if (!e || !this.presence.has(remote) || this.virtual.has(remote)) return
+    this.virtual.set(remote, {
+      pubkey: remote,
+      meta: e.hello.meta ?? {},
+      attestations: e.hello.attestations ?? [],
+      caps: e.caps,
+      confirmedAt: this.clock.now(),
+      listed: false,
+    })
   }
 
   private afterJoin(remote: Hex): void {
@@ -1058,11 +1098,18 @@ export class RoomImpl<P extends ProtocolDef> implements Room<P> {
         attestations: item.attestations ?? [],
         caps: item.caps ?? [],
         confirmedAt: now,
+        listed: true,
       })
       this.refreshMember(item.pubkey)
     }
     for (const pk of [...this.virtual.keys()]) {
-      if (!seen.has(pk)) {
+      const v = this.virtual.get(pk)
+      if (v && !seen.has(pk) && v.listed) {
+        v.listed = false
+        v.confirmedAt = now
+      }
+      // Missing from the roster but still announcing: likely mid-handoff, let the sweep decide.
+      if (!seen.has(pk) && !this.presence.has(pk)) {
         this.virtual.delete(pk)
         this.refreshMember(pk)
       }
