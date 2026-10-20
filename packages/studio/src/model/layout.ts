@@ -42,6 +42,12 @@ export function forceLayout(
   let temp = Math.min(width, height) / (opts.previous ? 20 : 8)
   const cool = temp / (iterations + 1)
   const valid = edges.filter(([a, b]) => a in pos && b in pos && a !== b)
+  // dense meshes would collapse into a ball; damp attraction by node degree
+  const degree: Record<string, number> = {}
+  for (const [a, b] of valid) {
+    degree[a] = (degree[a] ?? 0) + 1
+    degree[b] = (degree[b] ?? 0) + 1
+  }
 
   for (let it = 0; it < iterations; it++) {
     const disp: Record<string, Point> = {}
@@ -78,7 +84,7 @@ export function forceLayout(
       const dx = pa.x - pb.x
       const dy = pa.y - pb.y
       const d = Math.max(0.01, Math.hypot(dx, dy))
-      const f = (d * d) / k
+      const f = (d * d) / k / Math.max(degree[a] ?? 1, degree[b] ?? 1)
       const da = disp[a] as Point
       const db = disp[b] as Point
       da.x -= (dx / d) * f
@@ -90,8 +96,8 @@ export function forceLayout(
     for (const id of sorted) {
       const p = pos[id] as Point
       const dd = disp[id] as Point
-      dd.x += (cx - p.x) * 0.05 * (k / 50)
-      dd.y += (cy - p.y) * 0.05 * (k / 50)
+      dd.x += (cx - p.x) * 0.02 * (k / 50)
+      dd.y += (cy - p.y) * 0.02 * (k / 50)
       const len = Math.max(0.01, Math.hypot(dd.x, dd.y))
       const step = Math.min(len, temp)
       p.x = clamp(p.x + (dd.x / len) * step, padding, width - padding)

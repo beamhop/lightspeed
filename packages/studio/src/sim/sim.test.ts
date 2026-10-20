@@ -78,6 +78,19 @@ describe('simulated source', () => {
     expect(engine.peers().filter((p) => p.isHost).length).toBe(1)
   })
 
+  test('star host handoff when the host is killed', () => {
+    const engine = new SimEngine({ seed: 8, peers: 4, topology: 'star', chaos: 0 })
+    engine.step(6000)
+    const oldHost = engine.host() as string
+    engine.injectFault({ type: 'kill', peer: oldHost })
+    engine.step(6000)
+    const newHost = engine.host()
+    expect(newHost).not.toBe(oldHost)
+    const links = activeLinks(buildTopology(engine.events()))
+    expect(links.length).toBe(2)
+    expect(links.every((l) => l.a === newHost || l.b === newHost)).toBe(true)
+  })
+
   test('relayFirst migrates from relay to another path', () => {
     const events = generateEvents({ seed: 11, peers: 3, relayFirst: true }, 10_000)
     const paths = events

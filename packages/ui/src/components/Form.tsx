@@ -37,7 +37,7 @@ function Field({
 
 export interface InputProps
   extends FieldProps,
-    Omit<JSX.HTMLAttributes<HTMLInputElement>, 'label' | 'onInput' | 'value'> {
+    Omit<JSX.IntrinsicElements['input'], 'label' | 'onInput' | 'value' | 'ref'> {
   value?: string | number
   type?: string
   placeholder?: string
