@@ -7,7 +7,10 @@ let cookie: string
 let appId: string
 
 beforeAll(async () => {
-  t = await startTestRelay({ nostr: { name: 'Test relay' } })
+  t = await startTestRelay({
+    nostr: { name: 'Test relay' },
+    admin: { distDir: '/nonexistent/relay-admin/dist' },
+  })
   cookie = await bootstrapPubkeyAdmin(t, getPublicKey(randomHex(32)))
   const r = await api(t.base, '/api/admin/apps', { cookie, body: { name: 'Chat App', id: 'chat' } })
   appId = r.body.id
