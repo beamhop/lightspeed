@@ -188,7 +188,8 @@ describe('RFC 5769 test vectors', () => {
 describe('codec', () => {
   test('message type packing round-trips', () => {
     for (const m of Object.values(Method))
-      for (const c of [0, 1, 2, 3] as const) expect(splitType(messageType(m, c))).toEqual({ method: m, cls: c })
+      for (const c of [0, 1, 2, 3] as const)
+        expect(splitType(messageType(m, c))).toEqual({ method: m, cls: c })
     expect(messageType(Method.Binding, Class.Request)).toBe(0x0001)
     expect(messageType(Method.Binding, Class.Success)).toBe(0x0101)
     expect(messageType(Method.Allocate, Class.Error)).toBe(0x0113)
@@ -281,16 +282,21 @@ describe('fuzz', () => {
 
   test('random bytes behind a valid header never throw', () => {
     fc.assert(
-      fc.property(fc.integer({ min: 0, max: 0x3fff }), tidArb, fc.uint8Array({ maxLength: 400 }), (t, tid, body) => {
-        const buf = new Uint8Array(20 + body.length)
-        const v = new DataView(buf.buffer)
-        v.setUint16(0, t)
-        v.setUint16(2, body.length & ~3)
-        v.setUint32(4, 0x2112a442)
-        buf.set(tid, 8)
-        buf.set(body, 20)
-        exercise(buf)
-      }),
+      fc.property(
+        fc.integer({ min: 0, max: 0x3fff }),
+        tidArb,
+        fc.uint8Array({ maxLength: 400 }),
+        (t, tid, body) => {
+          const buf = new Uint8Array(20 + body.length)
+          const v = new DataView(buf.buffer)
+          v.setUint16(0, t)
+          v.setUint16(2, body.length & ~3)
+          v.setUint32(4, 0x2112a442)
+          buf.set(tid, 8)
+          buf.set(body, 20)
+          exercise(buf)
+        },
+      ),
       { numRuns: 5000 },
     )
   })
@@ -318,7 +324,9 @@ describe('fuzz', () => {
           const msg = decodeStun(buf)
           if (!msg) throw new Error('round-trip decode failed')
           if (verifyIntegrity(msg, key).result !== 'ok') throw new Error('integrity failed')
-          const values = msg.attributes.slice(0, clean.length).map((a) => [a.type, Array.from(a.value)])
+          const values = msg.attributes
+            .slice(0, clean.length)
+            .map((a) => [a.type, Array.from(a.value)])
           expect(values).toEqual(clean.map(([t, v]) => [t, Array.from(v)]))
           const mutated = buf.slice()
           mutated[pos % mutated.length] = byte

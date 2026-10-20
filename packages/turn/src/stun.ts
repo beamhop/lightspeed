@@ -337,7 +337,9 @@ export function saslprep(s: string): string {
 /** Long-term credential key: MD5(username ":" realm ":" SASLprep(password)). */
 export function longTermKey(username: string, realm: string, password: string): Uint8Array {
   return new Uint8Array(
-    createHash('md5').update(`${username}:${realm}:${saslprep(password)}`, 'utf8').digest(),
+    createHash('md5')
+      .update(`${username}:${realm}:${saslprep(password)}`, 'utf8')
+      .digest(),
   )
 }
 
@@ -441,7 +443,7 @@ export function decodeErrorCode(
 export function encodeUnknownAttributes(types: number[]): Uint8Array {
   const out = new Uint8Array(types.length * 2)
   const view = new DataView(out.buffer)
-  types.forEach((t, i) => view.setUint16(i * 2, t))
+  for (const [i, t] of types.entries()) view.setUint16(i * 2, t)
   return out
 }
 

@@ -11,7 +11,9 @@
     "./stun": "./src/stun.ts",
     "./client": "./src/client.ts"
   },
-  "bin": { "beamhop-turn": "./src/bin.ts" },
+  "bin": {
+    "beamhop-turn": "./src/bin.ts"
+  },
   "scripts": {
     "test": "bun test",
     "bench": "bun bench/udp.ts",
