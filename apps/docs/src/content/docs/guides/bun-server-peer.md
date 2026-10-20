@@ -28,31 +28,44 @@ transports: [webrtcTransport({ iceServers }), relayTransport({ url: 'wss://relay
 ## The server
 
 ```ts title="server.ts"
-import { createRoom, nostr, relayTransport } from '@beamhop/p2p'
+import { anonymous, createRoom, getPublicKey, relayTransport } from '@beamhop/p2p'
 import { nostrSignaling } from '@beamhop/signaling-nostr'
 import { protocol } from './protocol'
+
+// A fixed session key gives the server a stable pubkey, so clients can name it as the star host.
+const secretKey = Bun.env.SERVER_SECRET_KEY!            // 64-char hex
+const serverPubkey = getPublicKey(secretKey)
 
 const room = await createRoom({
   appId: 'my-app',
   roomId: 'world-1',
-  identity: nostr({ nsec: Bun.env.BOT_NSEC! }),   // stable pubkey so clients can trust it
+  identity: anonymous({ secretKey }),
   signaling: nostrSignaling({ relays: ['wss://relay.example/a/my-app'] }),
   transports: [relayTransport({ url: 'wss://relay.example/a/my-app/data' })],
-  topology: { star: { host: 'self' } },
+  topology: { star: { host: serverPubkey } },
   protocol,
   meta: { name: 'world-1 host', role: 'server' },
 })
 
-const board = room.state.map<string>('board', {
-  validate: (key, value, peer) => isLegalMove(key, value, peer),
+const board = room.state.map<string>('board')
+
+// Persist and restore: replay the saved snapshot as writes, save on every change (debounced).
+const saved = Bun.file('board.json')
+if (await saved.exists()) {
+  for (const [k, v] of Object.entries((await saved.json()) as Record<string, string>)) board.set(k, v)
+}
+let timer: ReturnType<typeof setTimeout> | undefined
+board.subscribe(() => {
+  clearTimeout(timer)
+  timer = setTimeout(() => Bun.write('board.json', JSON.stringify(board.toObject())), 1000)
 })
 
-// Persist and restore
-const saved = Bun.file('board.json')
-if (await saved.exists()) board.load(await saved.json())
-setInterval(() => Bun.write('board.json', JSON.stringify(board.dump())), 10_000)
-
-room.handle('roll', ({ sides }) => ({ value: 1 + Math.floor(Math.random() * sides) }))
+// Authoritative writes go through a request the host checks.
+room.request('move').handle(({ key, value }, from) => {
+  if (!isLegalMove(key, value, from)) return { ok: false }
+  board.set(key, value)
+  return { ok: true }
+})
 
 process.on('SIGTERM', async () => {
   await room.leave()
@@ -61,12 +74,13 @@ process.on('SIGTERM', async () => {
 ```
 
 Run it with `bun server.ts`. Clients configure `topology: { star: { host: '<server pubkey>' } }`
-so handoff never moves authority to a browser.
+so handoff never moves authority to a browser. To vouch for the server with your Nostr key instead,
+use `nostr({ nsec })`: peers then see a verified `nostr` attestation, but the session pubkey is fresh
+on every start, so pin the host by attestation in `policy.admit` rather than by pubkey.
 
 ## Many rooms per process
 
-`createRoom` is cheap; one process can join hundreds of rooms. Share one signaling adapter and one
-relay transport across rooms to reuse WebSocket connections.
+`createRoom` is cheap; one process can join many rooms, each with its own `Room` handle.
 
 ## Load testing
 

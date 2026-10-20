@@ -1,7 +1,8 @@
 // In-page bridge: the app calls room.devtools(), which posts its telemetry on the
 // BroadcastChannel `beamhop-devtools:<roomId>`. Studio (same origin: iframe, overlay or another
-// tab) listens here. No network involved.
-import type { TelemetryEvent } from '@beamhop/p2p'
+// tab) listens here. No network involved. The page side is `startDevtools` in
+// @beamhop/p2p (src/room/devtools.ts); `bridge.test.ts` runs both ends against each other.
+import { devtoolsChannelName, type TelemetryEvent } from '@beamhop/p2p'
 import type {
   ActiveFault,
   AdmissionResult,
@@ -15,7 +16,7 @@ import type {
   Unsubscribe,
 } from '../room-adapter'
 
-export const devtoolsChannelName = (roomId: string) => `beamhop-devtools:${roomId}`
+export { devtoolsChannelName }
 
 /** Messages the page may post. A bare TelemetryEvent is accepted too (source = page's self). */
 export type BridgeInbound =
@@ -24,6 +25,7 @@ export type BridgeInbound =
   | { type: 'hello'; self: Hex; peers?: StudioPeer[] }
   | { type: 'peers'; peers: StudioPeer[] }
   | { type: 'connection-info'; source: Hex; peer: Hex; info: ConnectionInfo }
+  | { type: 'admission'; pubkey: Hex; admitted: boolean; reason?: string }
 
 /** Messages Studio posts back; the page's dev hook may act on them. */
 export type BridgeOutbound =
@@ -50,6 +52,8 @@ const TELEMETRY_TYPES = new Set([
   'message',
   'progress',
   'peer',
+  'error',
+  'host',
 ])
 
 export function isTelemetryEvent(x: unknown): x is TelemetryEvent {
@@ -64,6 +68,8 @@ export interface BridgeRoomOptions {
   channel?: () => ChannelLike
   /** Fallback source pubkey before the page says hello. */
   defaultSource?: Hex
+  /** How long setIdentity waits for the page's `admission` reply (default 2000 ms). */
+  admissionTimeoutMs?: number
 }
 
 export class BridgeRoom implements StudioRoom {
@@ -80,9 +86,12 @@ export class BridgeRoom implements StudioRoom {
   private faultSeq = 0
   private infos = new Map<string, ConnectionInfo>()
   private readonly makeChannel: () => ChannelLike
+  private readonly admissionTimeoutMs: number
+  private admissionWaiters = new Map<Hex, Set<(r: AdmissionResult) => void>>()
 
   constructor(opts: BridgeRoomOptions) {
     this.roomId = opts.roomId
+    this.admissionTimeoutMs = opts.admissionTimeoutMs ?? 2000
     this.self = opts.defaultSource ?? 'page'
     this.makeChannel =
       opts.channel ??
@@ -114,6 +123,15 @@ export class BridgeRoom implements StudioRoom {
         break
       case 'connection-info':
         if ('info' in m) this.infos.set(`${m.source}>${m.peer}`, m.info)
+        break
+      case 'admission':
+        if ('admitted' in m && typeof m.pubkey === 'string') {
+          const result: AdmissionResult = {
+            admitted: !!m.admitted,
+            ...(m.reason ? { reason: String(m.reason) } : {}),
+          }
+          for (const w of this.admissionWaiters.get(m.pubkey) ?? []) w(result)
+        }
         break
     }
   }
@@ -187,9 +205,37 @@ export class BridgeRoom implements StudioRoom {
     return this.infos.get(`${source}>${peer}`) ?? null
   }
 
+  /**
+   * Ask the page's room to evaluate `identity` against its policy. Every attached page answers
+   * with `{ type: 'admission' }`; the first answer wins. Without an answer (older page hook) the
+   * identity counts as forwarded.
+   */
   async setIdentity(identity: StudioIdentity): Promise<AdmissionResult> {
-    this.post({ type: 'identity', identity })
-    // The page decides admission; the bridge itself has no policy.
-    return { admitted: true, reason: 'forwarded to the page (bridge mode has no admission check)' }
+    const { kind, pubkey, label, attestation } = identity
+    const answer = new Promise<AdmissionResult>((resolve) => {
+      let set = this.admissionWaiters.get(pubkey)
+      if (!set) {
+        set = new Set()
+        this.admissionWaiters.set(pubkey, set)
+      }
+      const waiters = set
+      const done = (r: AdmissionResult) => {
+        clearTimeout(timer)
+        waiters.delete(done)
+        if (!waiters.size) this.admissionWaiters.delete(pubkey)
+        resolve(r)
+      }
+      const timer = setTimeout(
+        () =>
+          done({
+            admitted: true,
+            reason: 'forwarded to the page (no admission answer from its devtools hook)',
+          }),
+        this.admissionTimeoutMs,
+      )
+      waiters.add(done)
+    })
+    this.post({ type: 'identity', identity: { kind, pubkey, label, attestation } })
+    return answer
   }
 }

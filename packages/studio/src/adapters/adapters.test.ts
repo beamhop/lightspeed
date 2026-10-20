@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { StudioEvent } from '../room-adapter'
 import { BridgeRoom, type ChannelLike, devtoolsChannelName, isTelemetryEvent } from './bridge'
-import { OBSERVER_UNAVAILABLE, ObserverRoom } from './observer'
+import { ObserverRoom } from './observer'
 
 class FakeChannel implements ChannelLike {
   sent: unknown[] = []
@@ -80,38 +80,44 @@ describe('BroadcastChannel bridge', () => {
       info: { state: 'connected', path: 'direct', channels: [], candidatePairs: [] },
     })
     expect(room.connectionInfo(P, Q)?.path).toBe('direct')
-    const res = await room.setIdentity({
-      kind: 'anonymous',
+    const identity = {
+      kind: 'anonymous' as const,
       pubkey: P,
       label: 'a',
-      attestation: { type: 'anonymous' },
-    })
+      attestation: { type: 'anonymous' as const },
+    }
+    // No admission answer from the page: forwarded after the timeout.
+    const quiet = new BridgeRoom({ roomId: 'r', channel: () => ch, admissionTimeoutMs: 10 })
+    await quiet.join()
+    const res = await quiet.setIdentity(identity)
     expect(res.admitted).toBe(true)
     expect(ch.sent.some((m) => (m as { type: string }).type === 'identity')).toBe(true)
+    // With an answer, the page's decision is returned.
+    const pending = room.setIdentity(identity)
+    ch.deliver({ type: 'admission', pubkey: P, admitted: false, reason: 'nope' })
+    expect(await pending).toEqual({ admitted: false, reason: 'nope' })
   })
 
   test('isTelemetryEvent', () => {
     expect(isTelemetryEvent({ type: 'peer', at: 1, peer: P, event: 'join' })).toBe(true)
+    expect(isTelemetryEvent({ type: 'host', at: 1, host: null })).toBe(true)
     expect(isTelemetryEvent({ type: 'peer' })).toBe(false)
     expect(isTelemetryEvent(null)).toBe(false)
   })
 })
 
-describe('observer placeholder', () => {
-  test('reports itself unavailable', async () => {
+describe('observer adapter', () => {
+  test('cannot inject faults; identities without a held session key are refused', async () => {
     const room = new ObserverRoom({ appId: 'a', roomId: 'r', relay: 'wss://x' })
-    expect(ObserverRoom.available).toBe(false)
-    await expect(room.join()).rejects.toThrow(OBSERVER_UNAVAILABLE)
+    expect(ObserverRoom.available).toBe(true)
     await expect(room.injectFault({ type: 'kill', peer: P })).rejects.toThrow('not supported')
-    expect(
-      (
-        await room.setIdentity({
-          kind: 'anonymous',
-          pubkey: P,
-          label: '',
-          attestation: { type: 'anonymous' },
-        })
-      ).admitted,
-    ).toBe(false)
+    const res = await room.setIdentity({
+      kind: 'anonymous',
+      pubkey: P,
+      label: '',
+      attestation: { type: 'anonymous' },
+    })
+    expect(res.admitted).toBe(false)
+    expect(res.reason).toContain('session key')
   })
 })

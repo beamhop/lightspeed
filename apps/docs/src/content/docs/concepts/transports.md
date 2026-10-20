@@ -23,7 +23,7 @@ interface Transport {
 |---|---|---|---|
 | `webrtcTransport({ iceServers })` | `@beamhop/p2p/webrtc` | Browsers (and Node/Bun with a WebRTC polyfill) | `direct`, `turn` |
 | `relayTransport({ url })` | `@beamhop/p2p` | Everywhere with WebSocket | `relay` |
-| `memoryTransport()` | `@beamhop/p2p/memory` | In-process | `memory` |
+| `memoryTransport(createMemoryHub())` | `@beamhop/p2p` | In-process (tests, simulator) | `memory` |
 
 ## The ladder
 
@@ -58,14 +58,14 @@ createRoom({ /* … */ relayFirst: true })
 ## Sessions, away and back
 
 Sessions are keyed by identity, not by connection. When a connection drops (Wi-Fi to cellular, a
-backgrounded tab) the manager emits `away` instead of `leave`, re-runs the ladder and emits `back`
-on success. Messages sent on reliable channels carry ids and acknowledgements, so delivery is
-at-least-once across the gap and receivers de-duplicate. A peer that stays away longer than the
-announce TTL is reported as left.
+backgrounded tab) the peer's `state` becomes `'away'` instead of it leaving, the manager re-runs the
+ladder and the peer is `'connected'` again on success (telemetry `connection` events `away` and
+`back`). Messages sent on reliable channels carry sequence numbers and acknowledgements, so delivery
+is at-least-once across the gap and receivers de-duplicate. A peer that stays away longer than
+`timeouts.resumeWindowMs` (30 s) is reported as left.
 
 ```ts
-room.onPeerAway((peer) => markIdle(peer))
-room.onPeerBack((peer) => markActive(peer))
+room.onPeerUpdate((peer) => (peer.state === 'away' ? markIdle(peer) : markActive(peer)))
 ```
 
 ## Getting TURN credentials

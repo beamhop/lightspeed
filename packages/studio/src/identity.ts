@@ -1,8 +1,15 @@
 // Identity switcher helpers: build anonymous, Nostr and OIDC identities for the observer so
-// admission policies can be tested.
-import { schnorr } from '@noble/curves/secp256k1'
-import { sha256 } from '@noble/hashes/sha256'
-import { bytesToHex, hexToBytes, utf8ToBytes } from '@noble/hashes/utils'
+// admission policies can be tested. Nostr attestations use the library's format (a kind 28100
+// event signed by the Nostr key, see @beamhop/p2p README "Nostr session attestation").
+import {
+  finalizeEvent,
+  generateSecretKey,
+  getPublicKey,
+  bech32Decode as libBech32Decode,
+  verifyNostrAttestation as libVerifyNostrAttestation,
+  sessionAttestationEvent,
+} from '@beamhop/p2p'
+import { bytesToHex, hexToBytes } from '@noble/hashes/utils'
 import type { Hex, StudioIdentity } from './room-adapter'
 
 export interface IdentityWithKey {
@@ -11,74 +18,47 @@ export interface IdentityWithKey {
   secretKey: Hex
 }
 
+/**
+ * Session secret keys of identities Studio created, so the observer peer can join as them. Kept in
+ * memory only and never posted anywhere (the identity objects themselves carry no secret).
+ */
+const sessionKeys = new WeakMap<StudioIdentity, Hex>()
+
+/** The session secret key behind an identity created by this module, if any. */
+export function sessionSecretKey(identity: StudioIdentity): Hex | undefined {
+  return sessionKeys.get(identity)
+}
+
+function withKey(identity: StudioIdentity, sk: Uint8Array): IdentityWithKey {
+  const secretKey = bytesToHex(sk)
+  sessionKeys.set(identity, secretKey)
+  return { identity, secretKey }
+}
+
 function newSessionKey(): { sk: Uint8Array; pk: Hex } {
-  const sk = schnorr.utils.randomPrivateKey()
-  return { sk, pk: bytesToHex(schnorr.getPublicKey(sk)) }
+  const sk = generateSecretKey()
+  return { sk, pk: getPublicKey(sk) }
 }
 
 export function anonymousIdentity(): IdentityWithKey {
   const { sk, pk } = newSessionKey()
-  return {
-    identity: {
+  return withKey(
+    {
       kind: 'anonymous',
       pubkey: pk,
       label: 'anonymous',
       attestation: { type: 'anonymous' },
     },
-    secretKey: bytesToHex(sk),
-  }
+    sk,
+  )
 }
 
-// ------------------------------------------------------------------ bech32 (NIP-19 npub/nsec)
-
-const CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l'
-
-function polymod(values: number[]): number {
-  const GEN = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3]
-  let chk = 1
-  for (const v of values) {
-    const top = chk >>> 25
-    chk = ((chk & 0x1ffffff) << 5) ^ v
-    for (let i = 0; i < 5; i++) if ((top >>> i) & 1) chk ^= GEN[i] as number
-  }
-  return chk
-}
-
-function hrpExpand(hrp: string): number[] {
-  const out: number[] = []
-  for (let i = 0; i < hrp.length; i++) out.push(hrp.charCodeAt(i) >>> 5)
-  out.push(0)
-  for (let i = 0; i < hrp.length; i++) out.push(hrp.charCodeAt(i) & 31)
-  return out
-}
+// ------------------------------------------------------------------ NIP-19 npub/nsec
 
 /** Decode a bech32 string into its prefix and bytes. Throws on bad checksum. */
 export function bech32Decode(str: string): { prefix: string; bytes: Uint8Array } {
-  const s = str.toLowerCase()
-  const pos = s.lastIndexOf('1')
-  if (pos < 1 || pos + 7 > s.length) throw new Error('invalid bech32 string')
-  const prefix = s.slice(0, pos)
-  const data: number[] = []
-  for (const c of s.slice(pos + 1)) {
-    const v = CHARSET.indexOf(c)
-    if (v === -1) throw new Error('invalid bech32 character')
-    data.push(v)
-  }
-  if (polymod([...hrpExpand(prefix), ...data]) !== 1) throw new Error('invalid bech32 checksum')
-  const words = data.slice(0, -6)
-  // 5-bit → 8-bit
-  let acc = 0
-  let bits = 0
-  const out: number[] = []
-  for (const w of words) {
-    acc = (acc << 5) | w
-    bits += 5
-    while (bits >= 8) {
-      bits -= 8
-      out.push((acc >>> bits) & 0xff)
-    }
-  }
-  return { prefix, bytes: new Uint8Array(out) }
+  const { hrp, data } = libBech32Decode(str)
+  return { prefix: hrp, bytes: data }
 }
 
 /** Accepts 64-char hex or an npub; returns the hex pubkey. */
@@ -106,47 +86,48 @@ export function parseSecretKey(input: string): Uint8Array {
 }
 
 /**
- * Message a Nostr key signs to vouch for a session key.
- * TODO(@beamhop/p2p): align with the library's attestation transcript once it is published.
+ * Nostr identity. With a secret key the session attestation (kind 28100 event, `p` tag = session
+ * pubkey) is signed locally, exactly like `createNostrAttestation(secretKeySigner(sk), session)`;
+ * with only a pubkey (e.g. from NIP-07 getPublicKey) the signature is left empty and the room will
+ * reject it, which is itself a useful admission test.
  */
-export function attestationHash(sessionPubkey: Hex): Uint8Array {
-  return sha256(utf8ToBytes(`beamhop/v1/attest:${sessionPubkey}`))
-}
-
-/**
- * Nostr identity. With a secret key the attestation is signed locally; with only a pubkey
- * (e.g. from NIP-07 getPublicKey) the signature is left empty and the room will reject it if
- * it verifies attestations — which is itself a useful admission test.
- */
-export function nostrIdentity(opts: { secretKey?: string; pubkey?: string }): IdentityWithKey {
+export function nostrIdentity(opts: {
+  secretKey?: string
+  pubkey?: string
+  /** created_at of the attestation event (default now). */
+  createdAt?: number
+}): IdentityWithKey {
   const session = newSessionKey()
+  const createdAt = opts.createdAt ?? Math.floor(Date.now() / 1000)
   let nostrPub: Hex
   let sig = ''
   if (opts.secretKey) {
     const nsk = parseSecretKey(opts.secretKey)
-    nostrPub = bytesToHex(schnorr.getPublicKey(nsk))
-    sig = bytesToHex(schnorr.sign(attestationHash(session.pk), nsk))
+    const signed = finalizeEvent(sessionAttestationEvent(session.pk, createdAt), nsk)
+    nostrPub = signed.pubkey
+    sig = signed.sig
   } else if (opts.pubkey) {
     nostrPub = parsePubkey(opts.pubkey)
   } else {
     throw new Error('nostr identity needs a secret key or a pubkey')
   }
-  return {
-    identity: {
+  return withKey(
+    {
       kind: 'nostr',
       pubkey: session.pk,
       label: `nostr ${nostrPub.slice(0, 8)}…${sig ? '' : ' (unsigned)'}`,
-      attestation: { type: 'nostr', pubkey: nostrPub, sig },
+      attestation: { type: 'nostr', pubkey: nostrPub, sig, created_at: createdAt },
     },
-    secretKey: bytesToHex(session.sk),
-  }
+    session.sk,
+  )
 }
 
+/** Verify a Nostr session attestation with @beamhop/p2p's `verifyNostrAttestation`. */
 export function verifyNostrAttestation(identity: StudioIdentity): boolean {
   const a = identity.attestation
   if (a.type !== 'nostr' || !a.sig) return false
   try {
-    return schnorr.verify(hexToBytes(a.sig), attestationHash(identity.pubkey), hexToBytes(a.pubkey))
+    return libVerifyNostrAttestation(a, identity.pubkey)
   } catch {
     return false
   }
@@ -172,7 +153,7 @@ function b64urlDecode(s: string): string {
   return new TextDecoder().decode(bytes)
 }
 
-/** Decode (not verify — the room verifies against the issuer JWKS) an attestation JWS. */
+/** Decode (not verify; the room verifies against the issuer JWKS) an attestation JWS. */
 export function decodeOidcAttestation(jws: string): OidcClaims {
   const parts = jws.trim().split('.')
   if (parts.length !== 3) throw new Error('expected a compact JWS (header.payload.signature)')

@@ -145,7 +145,7 @@ export function AttachBar() {
                 onValue={(roomId) =>
                   setDraft({ ...draft, observer: { ...draft.observer, roomId } })
                 }
-                hint="Joins with a debug capability token once @beamhop/p2p ships createRoom."
+                hint="Joins through <relay>/a/<app> as a peer with a self-signed debug token, which rooms with policy.dev: true accept. For other rooms use ObserverRoom with appSecretKey or debugToken + secretKey."
               />
             </>
           )}

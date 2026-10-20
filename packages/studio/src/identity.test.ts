@@ -1,11 +1,19 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  type Attestation,
+  createNostrAttestation,
+  verifyNostrAttestation as libVerify,
+  secretKeySigner,
+} from '@beamhop/p2p'
+import { hexToBytes } from '@noble/hashes/utils'
+import {
   anonymousIdentity,
   bech32Decode,
   decodeOidcAttestation,
   nostrIdentity,
   oidcIdentity,
   parsePubkey,
+  sessionSecretKey,
   verifyNostrAttestation,
 } from './identity'
 
@@ -42,6 +50,26 @@ describe('identity switcher', () => {
     expect(
       verifyNostrAttestation({ ...identity, pubkey: anonymousIdentity().identity.pubkey }),
     ).toBe(false)
+  })
+
+  test('nostr attestation matches the library format (kind 28100)', async () => {
+    const skHex = '0000000000000000000000000000000000000000000000000000000000000003'
+    const { identity, secretKey } = nostrIdentity({ secretKey: skHex, createdAt: 1_700_000_000 })
+    const att = identity.attestation as Extract<Attestation, { type: 'nostr' }>
+    // The library verifies Studio's attestation...
+    expect(libVerify(att, identity.pubkey)).toBe(true)
+    expect(att.created_at).toBe(1_700_000_000)
+    // ...and produces the same signed message for the same inputs.
+    const lib = await createNostrAttestation(
+      secretKeySigner(hexToBytes(skHex)),
+      identity.pubkey,
+      1_700_000_000,
+    )
+    expect(lib.pubkey).toBe(att.pubkey)
+    expect(verifyNostrAttestation({ ...identity, attestation: lib })).toBe(true)
+    // The session secret key is remembered for the observer, never put on the identity.
+    expect(sessionSecretKey(identity)).toBe(secretKey)
+    expect(JSON.stringify(identity)).not.toContain(secretKey)
   })
 
   test('nostr identity from pubkey only is unsigned', () => {

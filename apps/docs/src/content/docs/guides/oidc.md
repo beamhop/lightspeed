@@ -29,7 +29,35 @@ Generate an ES256 (or EdDSA) key pair for certificates and publish the public ke
 
 ## 2. Issue certificates
 
+The certificate is a compact JWS (ES256, EdDSA or RS256) with the payload
+`{ v: 1, iss, sub, pubkey, iat, exp }`. `@beamhop/p2p` can sign it for you:
+
 ```ts title="backend: POST /api/beamhop-cert"
+import { signAttestationCert } from '@beamhop/p2p'
+
+const privateKey = Buffer.from(Bun.env.BEAMHOP_CERT_KEY!, 'hex')   // 32-byte P-256 or Ed25519 key
+
+export async function issueCert(req: Request) {
+  const user = await verifyOidcSession(req)              // your existing auth
+  const { pubkey } = await req.json()
+  if (!/^[0-9a-f]{64}$/.test(pubkey)) return new Response('bad pubkey', { status: 400 })
+  const jws = signAttestationCert({
+    alg: 'ES256',
+    privateKey,
+    kid: 'beamhop-1',
+    iss: 'https://app.example',
+    sub: user.id,
+    pubkey,
+    ttlS: 3600,
+  })
+  return Response.json({ jws })
+}
+```
+
+`publicJwk('ES256', privateKey, 'beamhop-1')` gives the matching JWK for your JWKS. Any JOSE
+library works too, for example `jose`:
+
+```ts title="backend, with jose"
 import { SignJWT, importJWK } from 'jose'
 
 const key = await importJWK(JSON.parse(Bun.env.BEAMHOP_CERT_JWK!), 'ES256')
@@ -57,7 +85,6 @@ import { createRoom, oidc } from '@beamhop/p2p'
 const room = await createRoom({
   // …
   identity: oidc({
-    issuer: 'https://app.example',
     getCert: async (pubkey) => {
       const res = await fetch('/api/beamhop-cert', {
         method: 'POST',
@@ -67,17 +94,26 @@ const room = await createRoom({
       return (await res.json()).jws
     },
   }),
-  policy: { attest: { oidc: { iss: 'https://app.example' } } },
+  policy: {
+    attest: { oidc: { iss: 'https://app.example' } },   // optionally { iss, sub: ['alice', …] }
+    // jwks: staticJwks({ 'https://app.example': { keys: [jwk] } }),  // skip discovery
+  },
 })
 
-room.onPeerJoin((peer) => console.log(peer.oidc?.sub))   // verified subject
+room.onPeerJoin((peer) => {
+  const oidc = peer.verified.find((v) => v.ok && v.type === 'oidc')
+  console.log(oidc?.ok && oidc.subject)   // verified subject (and oidc.issuer)
+})
 ```
 
-The library refreshes the certificate before it expires and re-announces.
+The certificate is fetched once, when the identity loads. Make its lifetime cover the session, or
+create a new room with a fresh identity when it nears expiry.
 
 ## Notes
 
-- Peers fetch and cache your JWKS; serve it with CORS (`Access-Control-Allow-Origin: *`).
+- Peers find your JWKS through OIDC discovery (`<iss>/.well-known/openid-configuration` →
+  `jwks_uri`) and cache it; serve both with CORS (`Access-Control-Allow-Origin: *`), or pass
+  `policy.jwks: staticJwks(...)`.
 - Keep certificates short-lived. Revocation is "stop issuing": a removed user drops out when the
   cert expires (and you can rotate the signing key for immediate effect).
 - Combine with a Beamhop relay realm that requires NIP-42 AUTH so unauthenticated clients cannot

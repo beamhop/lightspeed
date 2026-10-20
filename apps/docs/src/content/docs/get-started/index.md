@@ -25,17 +25,15 @@ examples use Zod.
 
 ## 2. Declare a protocol
 
-A protocol lists every message your peers exchange. Each entry has a schema and a reliability mode.
+A protocol lists every message your peers exchange. `action(schema, opts?)` declares a
+fire-and-forget message (reliable by default); `request(req, res)` declares a request/response pair.
 
 ```ts title="protocol.ts"
-import { defineProtocol } from '@beamhop/p2p'
+import { action, defineProtocol } from '@beamhop/p2p'
 import { z } from 'zod'
 
 export const protocol = defineProtocol({
-  chat: {
-    schema: z.object({ text: z.string().min(1).max(2000) }),
-    reliability: { mode: 'reliable' },
-  },
+  chat: action(z.object({ text: z.string().min(1).max(2000) })),
 })
 ```
 
@@ -70,12 +68,14 @@ room.onPeerJoin((peer) => console.log(`${peer.meta.name} joined`))
 room.onPeerLeave((peer) => console.log(`${peer.meta.name} left`))
 
 const chat = room.action('chat')
-chat.on(({ text }, peer) => console.log(`${peer.meta.name}: ${text}`))
+chat.onMessage(({ text }, from) => console.log(`${room.peer(from)?.meta.name}: ${text}`))
 
 document.querySelector('form')?.addEventListener('submit', async (e) => {
   e.preventDefault()
   const input = document.querySelector('input') as HTMLInputElement
-  await chat.send({ text: input.value })   // to everyone; pass a pubkey to send to one peer
+  // To everyone; pass { to: pubkey } (or an array of pubkeys) to send to some peers.
+  // Resolves once every recipient acknowledged it.
+  await chat.send({ text: input.value })
   input.value = ''
 })
 ```
@@ -113,6 +113,6 @@ corporate networks) cannot reach each other without a relay. Run your own
 
 ## Next
 
-- [Add React](./react/) with `useRoom`, `usePeers` and `useAction`.
+- [Add React](./react/) with `RoomProvider`, `usePeers` and `useAction`.
 - Read the [concepts](../concepts/identity/) to understand what the library does for you.
 - Try the [live demo](/lightspeed/demo/) and open its Debug drawer.

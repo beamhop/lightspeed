@@ -17,7 +17,7 @@ A session key on its own says nothing about *who* is behind it. **Attestations**
 | Attestation | Claim | Verified by |
 |---|---|---|
 | `{ type: 'anonymous' }` | Nothing | – |
-| `{ type: 'nostr', pubkey, sig }` | The Nostr key `pubkey` vouches for this session key | Schnorr signature by `pubkey` |
+| `{ type: 'nostr', pubkey, sig, created_at }` | The Nostr key `pubkey` vouches for this session key | Schnorr signature by `pubkey` over a kind 28100 event (see below) |
 | `{ type: 'oidc', jws }` | Your backend vouches that OIDC subject `sub` from issuer `iss` holds this session key | JWS signature against the issuer's JWKS |
 
 Attestations travel in the encrypted announce and again in the handshake, where the peer also
@@ -27,18 +27,23 @@ proves it holds the session key by signing the handshake transcript. The applica
 ## Providers
 
 ```ts
-import { anonymous, nostr, oidc } from '@beamhop/p2p'
+import { anonymous, nip46Signer, nostr, oidc, parseBunkerUrl } from '@beamhop/p2p'
 
 anonymous()                       // fresh key per page load
 anonymous({ persist: true })      // key kept in IndexedDB, same id across reloads
+anonymous({ secretKey })          // fixed key (tests, Bun server peers)
 
-nostr({ nip07: true })            // browser extension (Alby, nos2x…)
-nostr({ nsec: 'nsec1…' })         // raw key (servers, tests)
-nostr({ bunker: 'bunker://…' })   // NIP-46 remote signer
+nostr()                           // NIP-07 browser extension (window.nostr: Alby, nos2x…)
+nostr({ extension: myNip07 })     // an explicit NIP-07 object
+nostr({ nsec: 'nsec1…' })         // raw key, nsec or hex (servers, tests)
+
+// NIP-46 remote signer: `transport` is any { publish(event), subscribe(filter, cb) } pair,
+// e.g. built on @beamhop/signaling-nostr's RelayPool.
+const { remotePubkey, secret } = parseBunkerUrl('bunker://<pubkey>?relay=wss://…&secret=…')
+nostr({ bunker: nip46Signer({ transport, remotePubkey, secret }) })
 
 oidc({
-  issuer: 'https://app.example',
-  // Called with the fresh session pubkey; your backend returns the signed cert (JWS).
+  // Called with the fresh session pubkey; your backend returns the signed cert (a JWS string).
   getCert: async (pubkey) => {
     const res = await fetch('/api/beamhop-cert', { method: 'POST', body: JSON.stringify({ pubkey }) })
     return (await res.json()).jws
@@ -47,7 +52,17 @@ oidc({
 ```
 
 With `nostr()`, the library creates an ephemeral session key and asks the Nostr signer once to sign
-an attestation for it, so the extension is not prompted for every signaling event.
+an attestation for it, so the extension is not prompted for every signaling event. The signed
+message is a regular Nostr event, so NIP-07 and NIP-46 signers work unchanged:
+
+```
+kind = 28100, created_at = attestation.created_at, tags = [["p", <session pubkey>]],
+content = "beamhop-session", pubkey = <Nostr user key>
+```
+
+`attestation.sig` is the BIP-340 signature over that event's NIP-01 id.
+`createNostrAttestation(signer, sessionPubkey)` and `verifyNostrAttestation(att, sessionPubkey)`
+implement it.
 
 ## Room policy
 
@@ -58,22 +73,27 @@ handshake and never reach your code.
 createRoom({
   // …
   policy: {
-    attest: 'any',                                      // default: everyone, including anonymous
-    // attest: { nostr: { pubkeys: ['<hex>', '<hex>'] } }, // only these Nostr users
-    // attest: { oidc: { iss: 'https://app.example' } },   // anyone your backend certified
-    // requireCapability: 'join',                          // capability token, see below
+    // Omit `attest` to admit everyone whose attestations verify (including anonymous peers).
+    attest: { anonymous: false, nostr: { pubkeys: ['<hex>', '<hex>'] } }, // only these Nostr users
+    // attest: { nostr: true },                       // any verified Nostr user
+    // attest: { oidc: { iss: 'https://app.example' } }, // anyone your backend certified
+    // jwks: staticJwks({ ... }),                     // OIDC keys (default: discovery, cached)
+    // capabilities: { issuers: [appPubkey], require: ['join'] }, // capability tokens, see below
+    // admit: (candidate) => true,                    // final say, after everything verified
   },
 })
 ```
 
-Peer objects expose what was verified:
+A peer is admitted when all of its attestations verify, at least one matches `attest` (when set),
+its capability token covers `capabilities.require`, and `admit` (when set) returns true. Peer
+objects expose what was verified:
 
 ```ts
 room.onPeerJoin((peer) => {
   peer.pubkey                      // session pubkey
-  peer.attestations                // verified attestations only
-  peer.nostrPubkey                 // set when a nostr attestation verified
-  peer.oidc                        // { iss, sub } when an OIDC cert verified
+  peer.attestations                // attestations the peer presented (all verified, or it would not be here)
+  peer.verified                    // results: { ok, type, nostrPubkey?, issuer?, subject? }[]
+  peer.caps                        // capabilities from a verified token, e.g. ['join', 'debug']
   peer.meta                        // self-declared metadata (name, avatar): not verified
 })
 ```
@@ -84,9 +104,12 @@ room.onPeerJoin((peer) => {
 
 ## Capability tokens
 
-A capability token is a short signed grant `{ room, pubkey, caps, exp }` issued by the room host or an
-app key. Rooms can require the `join` capability; Studio attaches with `debug` to receive telemetry.
-In development (`dev: true`) any well-formed token is accepted. See the
+A capability token is a short signed grant `{ v: 1, room, pubkey, caps, exp, iss, sig }` issued by
+an app key (`policy.capabilities.issuers`) or, in star rooms, the current host. Pass yours with
+`createRoom({ capability })`; issue them on a backend with
+`issueCapability(appSecretKey, { room: topic | '*', pubkey, caps: ['join'] })`. Rooms can require
+the `join` capability; Studio attaches with `debug` to receive telemetry. In development
+(`policy.dev: true`) any validly signed token is accepted regardless of issuer. See the
 [protocol spec](../../protocol/#9-capability-token-draft) for the format.
 
 ## Threat model in one paragraph

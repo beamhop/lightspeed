@@ -32,14 +32,14 @@ bun run --cwd apps/docs dev
 | Import | What |
 |---|---|
 | `createRoom(options)` from `@beamhop/p2p` | Joins a room; returns the `Room` handle |
-| `defineProtocol(def)` from `@beamhop/p2p` | Declares typed actions, requests and streams |
+| `defineProtocol(def)`, `action(schema, opts?)`, `request(req, res)` from `@beamhop/p2p` | Declares typed actions and requests |
 | `anonymous()`, `nostr()`, `oidc()` from `@beamhop/p2p` | Identity providers |
 | `webrtcTransport(opts)` from `@beamhop/p2p/webrtc` | WebRTC transport (browsers) |
 | `relayTransport(opts)` from `@beamhop/p2p` | Beamhop data relay transport (browsers, Bun, Node) |
-| `memoryTransport()` from `@beamhop/p2p/memory` | In-process transport for tests and the simulator |
+| `memoryTransport(createMemoryHub())`, `memorySignaling(createSignalingHub())` from `@beamhop/p2p` | In-process transport and signaling for tests and the simulator |
 | `nostrSignaling({ relays })` from `@beamhop/signaling-nostr` | Default signaling adapter |
 | `roomTopic`, `roomKey`, `encodeFrame`, `turnPassword`… from `@beamhop/p2p/wire` | Wire primitives, see the [protocol spec](../protocol/) |
-| `useRoom`, `usePeers`, `useAction`, `useSharedState` from `@beamhop/react` | React bindings |
+| `RoomProvider`, `useRoom`, `usePeers`, `useAction`, `useRequest`, `useSharedState`, `useSharedLog`, `useTelemetry` from `@beamhop/react` | React bindings |
 
 ## Shared types
 

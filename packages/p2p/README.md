@@ -7,7 +7,7 @@ transport, no WebRTC. MIT.
 
 ```ts
 import { action, anonymous, createRoom, defineProtocol, relayTransport, request } from '@beamhop/p2p'
-import { webrtc } from '@beamhop/p2p/webrtc'
+import { webrtcTransport } from '@beamhop/p2p/webrtc'
 import { nostrSignaling } from '@beamhop/signaling-nostr'
 import { z } from 'zod' // or Valibot or ArkType: any Standard Schema
 
@@ -22,7 +22,7 @@ const room = await createRoom({
   roomId: 'lobby',
   identity: anonymous({ persist: true }),
   signaling: nostrSignaling({ relays: ['wss://relay.example/a/my-app'] }),
-  transports: [webrtc(), relayTransport({ url: 'wss://relay.example/a/my-app/data' })],
+  transports: [webrtcTransport(), relayTransport({ url: 'wss://relay.example/a/my-app/data' })],
   protocol,
   meta: { name: 'Ada' },
 })
@@ -44,7 +44,7 @@ room.onFile(async (f) => save(await f.bytes()))                 // f.stream is a
 | --- | --- | --- |
 | Identity | `anonymous()` | `nostr({ nsec } \| { extension } \| { bunker })`, `oidc({ getCert })`, any `Identity` |
 | Signaling | `@beamhop/signaling-nostr` | `memorySignaling(hub)`, `unionSignaling(a, b, ...)`, any `SignalingFactory` |
-| Transport | `webrtc()` (`@beamhop/p2p/webrtc`) | `relayTransport({ url })`, `memoryTransport(hub)` |
+| Transport | `webrtcTransport()` (`@beamhop/p2p/webrtc`) | `relayTransport({ url })`, `memoryTransport(hub)` |
 | Topology | `'mesh'` | `{ star: { host? } }` |
 | Protocol | untyped | `defineProtocol({ name: action(schema) \| request(req, res) })` |
 
@@ -105,7 +105,7 @@ channel (`room.telemetry.subscribeRemote`).
   when it wants a link, so recovery never waits for a backoff. A knock that arrives while we hold a link
   older than 2 s means the far side lost it, so we drop ours and resume.
 - **Ladder:** `transports` are tried in order with a per-rung timeout (`timeouts.connectMs`, default 15 s),
-  e.g. `[webrtc({ stun }), webrtc({ turn, iceTransportPolicy: 'relay' }), relayTransport({ url })]`
+  e.g. `[webrtcTransport({ iceServers: stun }), webrtcTransport({ iceServers: turn, iceTransportPolicy: 'relay' }), relayTransport({ url })]`
   gives direct → TURN → relay. Failures back off from 0.5 s to 8 s.
 - **relayFirst:** the transport named `relay` is tried in parallel with the rest of the ladder; the session
   starts on whichever path is ready first and migrates to a better path (direct > TURN > relay) when it
@@ -174,7 +174,7 @@ peers rejoining after a long partition catch up. `room.state.digest()` is equal 
   info = 'beamhop/v1 relay i2r' | 'r2i')` with a 96-bit nonce of 4 zero bytes followed by a u64
   per-direction counter. Plaintext is `op u8 · channel u16 · …` (0 open: mode, maxRetransmits, label;
   1 message; 2 close). The rendezvous uses the signal pipe: `relay-connect { url }` → `relay-ready`.
-- `webrtc()`: `@beamhop/p2p/webrtc`, maintained separately.
+- `webrtcTransport({ iceServers?, iceTransportPolicy?, RTCPeerConnection? })`: `@beamhop/p2p/webrtc` (perfect negotiation, trickle ICE, ICE restart, path detection).
 
 ## Wire summary (room level)
 
