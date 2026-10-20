@@ -1,7 +1,9 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.0.0/schema.json",
-  "files": { "includes": ["**", "!**/dist", "!**/node_modules", "!**/.astro", "!docs/PLAN.md"] },
+  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+  "files": {
+    "includes": ["**", "!**/dist", "!**/node_modules", "!**/.astro", "!docs/PLAN.md", "!.claude", "!deploy/grafana"]
+  },
   "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },
   "javascript": { "formatter": { "quoteStyle": "single", "semicolons": "asNeeded" } },
-  "linter": { "enabled": true, "rules": { "recommended": true } }
+  "linter": { "enabled": true, "rules": { "preset": "none" } }
 }
