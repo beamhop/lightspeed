@@ -28,8 +28,11 @@ export interface RelayConfig {
     externalIp: string
     udpPort: number
     tcpPort: number
-    /** turns: port; 0 disables. Uses the http TLS cert. */
+    /** turns: port; 0 disables. */
     tlsPort: number
+    /** PEM files for turns:; empty = reuse http.tlsCert/tlsKey. */
+    tlsCert: string
+    tlsKey: string
     relayPortMin: number
     relayPortMax: number
     /** Lifetime of minted TURN REST credentials, seconds. */
@@ -114,6 +117,8 @@ export const defaultConfig: RelayConfig = {
     udpPort: 3478,
     tcpPort: 3478,
     tlsPort: 5349,
+    tlsCert: '',
+    tlsKey: '',
     relayPortMin: 50000,
     relayPortMax: 50100,
     credentialTtl: 86400,

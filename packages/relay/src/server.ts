@@ -279,10 +279,9 @@ class RelayServerImpl implements RelayServer, RelayContext {
         this.deps.turnFactory === undefined ? await loadTurnEngine() : this.deps.turnFactory
       if (turnFactory) {
         const t = this.config.turn
-        const tls =
-          t.tlsPort > 0 && this.config.http.tlsCert && this.config.http.tlsKey
-            ? { port: t.tlsPort, cert: this.config.http.tlsCert, key: this.config.http.tlsKey }
-            : undefined
+        const cert = t.tlsCert || this.config.http.tlsCert
+        const key = t.tlsKey || this.config.http.tlsKey
+        const tls = t.tlsPort > 0 && cert && key ? { port: t.tlsPort, cert, key } : undefined
         this.turn = turnFactory({
           realm: t.realm,
           listen: { udp: t.udpPort, tcp: t.tcpPort, tls },

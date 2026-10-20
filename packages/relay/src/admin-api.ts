@@ -646,6 +646,8 @@ const RESTART_KEYS = [
   'turn.udpPort',
   'turn.tcpPort',
   'turn.tlsPort',
+  'turn.tlsCert',
+  'turn.tlsKey',
   'turn.relayPortMin',
   'turn.relayPortMax',
   'backups.dir',

@@ -1,0 +1,77 @@
+# Beamhop relay behind Caddy (automatic ACME certificates for HTTPS/WSS on 443).
+#
+#   1. Point relay.example.com (A/AAAA) at this host and edit RELAY_DOMAIN + RELAY_PUBLIC_IP in .env
+#   2. docker compose up -d
+#   3. docker compose logs relay | grep -i bootstrap   # claim the first admin at https://<domain>/admin
+#
+# TURN cannot be proxied: the relay publishes 3478 (UDP+TCP) and the relayed UDP range directly.
+# turns: (TLS) on 5349 needs certificate files readable by the relay user (uid 10001): copy Caddy's
+# certificate into the relay-data volume with a renewal hook and set BEAMHOP_TURN_TLS_CERT/KEY and
+# BEAMHOP_TURN_TLS_PORT=5349 (see packages/relay/README.md).
+name: beamhop
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      RELAY_DOMAIN: ${RELAY_DOMAIN:?set RELAY_DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - relay
+
+  relay:
+    image: ghcr.io/beamhop/relay:latest
+    build:
+      context: ../..
+    restart: unless-stopped
+    environment:
+      BEAMHOP_PUBLIC_URL: https://${RELAY_DOMAIN}
+      BEAMHOP_HTTP_PORT: "8080"
+      BEAMHOP_HTTP_TRUST_PROXY: "true"
+      BEAMHOP_TURN_REALM: ${RELAY_DOMAIN}
+      BEAMHOP_TURN_PUBLIC_HOST: ${RELAY_DOMAIN}
+      BEAMHOP_TURN_EXTERNAL_IP: ${RELAY_PUBLIC_IP:?set RELAY_PUBLIC_IP in .env}
+      # Caddy terminates HTTPS; the relay speaks plain HTTP on 8080 inside the network.
+      BEAMHOP_HTTP_TLS_CERT: ""
+      BEAMHOP_HTTP_TLS_KEY: ""
+      BEAMHOP_TURN_TLS_PORT: "0"
+      # BEAMHOP_TURN_TLS_PORT: "5349"
+      # BEAMHOP_TURN_TLS_CERT: /data/tls/fullchain.pem
+      # BEAMHOP_TURN_TLS_KEY: /data/tls/privkey.pem
+    expose:
+      - "8080"
+    ports:
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+      # - "5349:5349/tcp"
+      - "50000-50100:50000-50100/udp"
+    volumes:
+      - relay-data:/data
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/beamhop-relay", "--healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Optional monitoring: Prometheus scraping /metrics. Import deploy/grafana/beamhop-relay.json
+  # into your Grafana and point it at this Prometheus.
+  prometheus:
+    image: prom/prometheus:latest
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+volumes:
+  caddy-data:
+  caddy-config:
+  relay-data:

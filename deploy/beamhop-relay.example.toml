@@ -1,0 +1,76 @@
+# Beamhop relay configuration.
+# Every key can be overridden by an environment variable: BEAMHOP_<SECTION>_<KEY>, for example
+# BEAMHOP_HTTP_PORT=8443 or BEAMHOP_TURN_EXTERNAL_IP=203.0.113.7 (top-level: BEAMHOP_DATA_DIR).
+# Settings edited in the admin UI are stored in admin.db and override this file (env still wins).
+# Leave http.tls_cert/tls_key empty when Caddy (or another proxy) terminates TLS on 443.
+
+data_dir = "/var/lib/beamhop-relay"
+public_url = "https://relay.example.com"
+
+[http]
+host = "0.0.0.0"
+port = 443
+tls_cert = "/etc/letsencrypt/live/relay.example.com/fullchain.pem"
+tls_key = "/etc/letsencrypt/live/relay.example.com/privkey.pem"
+trust_proxy = false
+rate_limit_per_minute = 1200
+
+[turn]
+enabled = true
+realm = "relay.example.com"
+host = "0.0.0.0"
+public_host = ""
+external_ip = ""
+udp_port = 3478
+tcp_port = 3478
+tls_port = 5349
+tls_cert = ""
+tls_key = ""
+relay_port_min = 50000
+relay_port_max = 50100
+credential_ttl = 86400
+
+[nostr]
+name = "Beamhop relay"
+description = "Nostr relay by Beamhop"
+contact = ""
+pubkey = ""
+icon = ""
+
+[data]
+max_frame_bytes = 262144
+messages_per_second = 2000
+
+[blossom]
+max_upload_bytes = 104857600
+allowed_mime = []
+default_quota_bytes = 5368709120
+per_pubkey_quota_bytes = 524288000
+require_auth_for_list = false
+
+[payments]
+nwc_url = ""
+required = false
+invoice_expiry_sec = 3600
+
+[backups]
+enabled = true
+hour = 3
+retention_days = 14
+dir = ""
+
+[log]
+level = "info"
+
+[alerts]
+disk_percent = 80
+error_rate = 0.05
+cert_days = 14
+
+[admin]
+dist_dir = ""
+session_ttl_hours = 168
+allowed_origins = []
+
+[metrics]
+token = ""

@@ -88,7 +88,7 @@ export async function handleTurnCredentials(
   const t = ctx.config.turn
   const h = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host
   const turnUrls = [`turn:${h}:${t.udpPort}?transport=udp`, `turn:${h}:${t.tcpPort}?transport=tcp`]
-  if (t.tlsPort > 0 && ctx.config.http.tlsCert)
+  if (t.tlsPort > 0 && (t.tlsCert || ctx.config.http.tlsCert))
     turnUrls.push(`turns:${h}:${t.tlsPort}?transport=tcp`)
   const body: TurnCredentialsResponse = {
     iceServers: [{ urls: `stun:${h}:${t.udpPort}` }, { urls: turnUrls, username, credential }],
