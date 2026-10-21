@@ -230,7 +230,7 @@ route('PATCH', '/apps/:id', async (r) => {
   const body = await r.body()
   const app = r.ctx.apps.update(p(r, 0), body)
   if (body.policy !== undefined) r.ctx.policies.put(app.id, sanitizePolicy(body.policy))
-  if (app.disabled) r.ctx.dataRelay.kickApp(app.id)
+  if (app.disabled) r.ctx.kickInactiveApps()
   r.audit('app.update', `app:${app.id}`, body)
   return json({ ...appView(app), policy: r.ctx.policies.stored(app.id) ?? {} })
 })
@@ -239,7 +239,7 @@ route('DELETE', '/apps/:id', (r) => {
   appOr404(r)
   r.ctx.apps.delete(p(r, 0))
   r.ctx.policies.invalidate()
-  r.ctx.dataRelay.kickApp(p(r, 0))
+  r.ctx.kickInactiveApps()
   r.audit('app.delete', `app:${p(r, 0)}`)
   return json({ ok: true })
 })
@@ -692,6 +692,7 @@ function spaSettings(c: RelayConfig) {
       hourUtc: c.backups.hour,
       retentionDays: c.backups.retentionDays,
     },
+    apps: { open: c.apps.open },
   }
 }
 
@@ -708,6 +709,7 @@ type Spa = {
   logging?: { level?: string }
   metrics?: { enabled?: boolean }
   backups?: { enabled?: boolean; hourUtc?: number; retentionDays?: number }
+  apps?: { open?: boolean }
 }
 
 /** Translate a SPA `Settings` document into a config patch containing only changed values. */
@@ -732,6 +734,7 @@ function fromSpaSettings(s: Spa, c: RelayConfig): Record<string, unknown> {
   set('backups', 'enabled', s.backups?.enabled, c.backups.enabled)
   set('backups', 'hour', s.backups?.hourUtc, c.backups.hour)
   set('backups', 'retentionDays', s.backups?.retentionDays, c.backups.retentionDays)
+  set('apps', 'open', s.apps?.open, c.apps.open)
   return patch
 }
 

@@ -19,6 +19,10 @@ export function sha256Hex(data: string | Uint8Array): string {
   return bytesToHex(sha256(typeof data === 'string' ? utf8ToBytes(data) : data))
 }
 
+export function hmacSha256Hex(key: string, msg: string): string {
+  return bytesToHex(hmac(sha256, utf8ToBytes(key), utf8ToBytes(msg)))
+}
+
 /** Constant-time string comparison. */
 export function safeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false

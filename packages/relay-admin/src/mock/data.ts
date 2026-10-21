@@ -325,6 +325,7 @@ export function createMockDb(now = Date.now(), seed = 7): MockDb {
     logging: { level: 'info' },
     metrics: { enabled: true, path: '/metrics', tokenSet: false },
     backups: { enabled: true, hourUtc: 3, retentionDays: 14 },
+    apps: { open: true },
   }
 
   return {

@@ -114,6 +114,8 @@ class RelayServerImpl implements RelayServer, RelayContext {
   private timers: ReturnType<typeof setInterval>[] = []
   private backupTimer: ReturnType<typeof setTimeout> | null = null
   private nostrSockets = new WeakSet<object>()
+  /** Open sockets on app realm relays, so they can be closed when their app stops being active. */
+  private realmSockets = new Map<ServerWebSocket<NostrSocketData>, string>()
   private adminDist: string | null
   private turnPorts: StartResult['turn'] = null
   private tlsMtime = 0
@@ -151,7 +153,11 @@ class RelayServerImpl implements RelayServer, RelayContext {
     this.relayPubkey = getPublicKey(secret)
 
     this.meter = new UsageMeter(this.adb)
-    this.apps = new AppStore(this.adb, { blossomQuotaBytes: this.config.blossom.defaultQuotaBytes })
+    this.apps = new AppStore(this.adb, {
+      blossomQuotaBytes: this.config.blossom.defaultQuotaBytes,
+      open: () => this.config.apps.open,
+      secret,
+    })
     this.bans = new BanStore(this.adb)
     this.payments = new Payments(this.adb, {
       nwcFactory: deps.nwcFactory ?? ((url) => createNwcClient(url)),
@@ -206,6 +212,18 @@ class RelayServerImpl implements RelayServer, RelayContext {
     this.policies.invalidate()
     this.refreshNip11()
     this.scheduleBackup()
+    this.kickInactiveApps()
+  }
+
+  /** Close realm and data relay sockets of apps that are disabled, deleted or no longer admitted. */
+  kickInactiveApps() {
+    for (const [ws, realm] of this.realmSockets) {
+      if (!this.apps.active(realm)) {
+        this.realmSockets.delete(ws)
+        ws.close(4002, 'app-disabled')
+      }
+    }
+    this.dataRelay.kickInactive()
   }
 
   private publicBase(): string {
@@ -411,8 +429,12 @@ class RelayServerImpl implements RelayServer, RelayContext {
       idleTimeout: 120,
       open: (s: ServerWebSocket<SocketData>) => {
         const d = s.data
-        if (this.nostrSockets.has(d))
-          return this.nostr?.websocket.open(s as ServerWebSocket<NostrSocketData>)
+        if (this.nostrSockets.has(d)) {
+          const ns = s as ServerWebSocket<NostrSocketData>
+          const realm = (d as { realm?: string | null }).realm
+          if (realm) this.realmSockets.set(ns, realm)
+          return this.nostr?.websocket.open(ns)
+        }
         const r = (d as { route?: string }).route
         if (r === 'data') return this.dataRelay.open(s as ServerWebSocket<DataSocketData>)
         if (r === 'stats') {
@@ -429,8 +451,10 @@ class RelayServerImpl implements RelayServer, RelayContext {
       },
       close: (s: ServerWebSocket<SocketData>, code: number, reason: string) => {
         const d = s.data
-        if (this.nostrSockets.has(d))
+        if (this.nostrSockets.has(d)) {
+          this.realmSockets.delete(s as ServerWebSocket<NostrSocketData>)
           return this.nostr?.websocket.close(s as ServerWebSocket<NostrSocketData>, code, reason)
+        }
         if ((d as { route?: string }).route === 'data')
           return this.dataRelay.close(s as ServerWebSocket<DataSocketData>)
       },

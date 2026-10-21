@@ -167,7 +167,7 @@ export class Blossom {
 
   private scopeQuota(scope: string): number {
     if (!scope) return this.opts.defaultQuotaBytes
-    return this.apps.get(scope)?.blossomQuotaBytes ?? 0
+    return (this.apps.get(scope) ?? this.apps.active(scope))?.blossomQuotaBytes ?? 0
   }
 
   scopeUsage(scope: string): number {

@@ -8,6 +8,7 @@ let appId: string
 
 beforeAll(async () => {
   t = await startTestRelay({
+    apps: { open: false },
     nostr: { name: 'Test relay' },
     admin: { distDir: '/nonexistent/relay-admin/dist' },
   })

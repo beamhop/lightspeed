@@ -37,6 +37,9 @@ contact = ""
 pubkey = ""
 icon = ""
 
+[apps]
+open = true
+
 [data]
 max_frame_bytes = 262144
 messages_per_second = 2000

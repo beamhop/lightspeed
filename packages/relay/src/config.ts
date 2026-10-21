@@ -45,6 +45,14 @@ export interface RelayConfig {
     pubkey: string
     icon: string
   }
+  apps: {
+    /**
+     * Accept any well-formed app ID without registering it first. Unregistered apps get default
+     * quotas and NIP-98-only TURN credentials; registered apps that are disabled stay blocked.
+     * When false, only apps created in the admin panel can connect.
+     */
+    open: boolean
+  }
   data: {
     /** Largest binary frame accepted on the data relay. */
     maxFrameBytes: number
@@ -132,6 +140,7 @@ export const defaultConfig: RelayConfig = {
     pubkey: '',
     icon: '',
   },
+  apps: { open: true },
   data: { maxFrameBytes: 256 * 1024, messagesPerSecond: 2000 },
   blossom: {
     maxUploadBytes: 100 * 1024 * 1024,

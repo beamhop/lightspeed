@@ -1,5 +1,5 @@
 import type { AdminDb } from './db'
-import { randomHex, safeEqual, sha256Hex } from './util/crypto'
+import { hmacSha256Hex, randomHex, safeEqual, sha256Hex } from './util/crypto'
 import { HttpError } from './util/http'
 
 export interface AppRecord {
@@ -17,6 +17,8 @@ export interface AppRecord {
   blossomMaxBlobBytes: number
   blossomAllowedMime: string[]
   disabled: boolean
+  /** False for an app admitted by open mode without being created in the admin panel. */
+  registered: boolean
   createdAt: number
   updatedAt: number
 }
@@ -74,6 +76,7 @@ function fromRow(r: AppRow): AppRecord {
     blossomMaxBlobBytes: r.blossom_max_blob_bytes,
     blossomAllowedMime: JSON.parse(r.blossom_allowed_mime || '[]') as string[],
     disabled: !!r.disabled,
+    registered: true,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   }
@@ -82,14 +85,37 @@ function fromRow(r: AppRow): AppRecord {
 const newApiKey = () => `bhk_${randomHex(24)}`
 const newTurnSecret = () => randomHex(32)
 
+export interface AppStoreOptions {
+  blossomQuotaBytes?: number
+  /** Open mode: admit unregistered app IDs (read on every lookup so settings apply live). */
+  open?: () => boolean
+  /** Relay-wide secret the TURN secrets of unregistered apps are derived from. */
+  secret?: string
+}
+
+/** Cap on remembered unregistered apps; IDs come from clients, so the map must stay bounded. */
+const OPEN_CACHE_MAX = 1024
+
 /** App (realm) records with an in-memory cache for the hot paths (TURN, data relay). */
 export class AppStore {
   private cache = new Map<string, AppRecord | null>()
+  private openCache = new Map<string, AppRecord>()
+  private opts: Required<AppStoreOptions>
 
   constructor(
     private adb: AdminDb,
-    private defaults: { blossomQuotaBytes: number } = { blossomQuotaBytes: 0 },
-  ) {}
+    opts: AppStoreOptions = {},
+  ) {
+    this.opts = {
+      blossomQuotaBytes: opts.blossomQuotaBytes ?? 0,
+      open: opts.open ?? (() => false),
+      secret: opts.secret ?? randomHex(32),
+    }
+  }
+
+  get openMode(): boolean {
+    return this.opts.open()
+  }
 
   private invalidate(id?: string) {
     if (id) this.cache.delete(id)
@@ -104,10 +130,42 @@ export class AppStore {
     return app
   }
 
-  /** An app that exists and is not disabled. */
+  /**
+   * An app clients may use: a registered app that is not disabled or, in open mode, any
+   * well-formed unregistered ID (with default quotas).
+   */
   active(id: string): AppRecord | null {
     const a = this.get(id)
-    return a && !a.disabled ? a : null
+    if (a) return a.disabled ? null : a
+    if (!this.opts.open() || !APP_ID_RE.test(id)) return null
+    return this.openApp(id)
+  }
+
+  private openApp(id: string): AppRecord {
+    const hit = this.openCache.get(id)
+    if (hit) return hit
+    if (this.openCache.size >= OPEN_CACHE_MAX) this.openCache.clear()
+    const app: AppRecord = {
+      id,
+      name: id,
+      turnSecret: hmacSha256Hex(this.opts.secret, `open-app:${id}`),
+      apiKeyPrefix: '',
+      blossomQuotaBytes: this.opts.blossomQuotaBytes,
+      plan: 'open',
+      turnMaxAllocations: 0,
+      turnMaxBps: 0,
+      turnMonthlyBytes: 0,
+      dataMonthlyBytes: 0,
+      description: '',
+      blossomMaxBlobBytes: 0,
+      blossomAllowedMime: [],
+      disabled: false,
+      registered: false,
+      createdAt: 0,
+      updatedAt: 0,
+    }
+    this.openCache.set(id, app)
+    return app
   }
 
   list(): AppRecord[] {
@@ -151,7 +209,7 @@ export class AppStore {
         newTurnSecret(),
         sha256Hex(apiKey),
         apiKey.slice(0, 10),
-        this.defaults.blossomQuotaBytes,
+        this.opts.blossomQuotaBytes,
         t,
         t,
       )
