@@ -1,0 +1,44 @@
+/* The landing page: full Tailwind (with preflight) on the shared shadcn tokens. */
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "./theme.css";
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    color-scheme: dark;
+  }
+  html[data-theme="light"] {
+    color-scheme: light;
+  }
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+  }
+}
+
+.bh-grid {
+  background-image:
+    linear-gradient(
+      to right,
+      color-mix(in oklab, var(--border) 60%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--border) 60%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 40%, transparent 100%);
+}
+
+.bh-code pre {
+  margin: 0;
+  padding: 1.25rem;
+  overflow-x: auto;
+  font-size: 0.8125rem;
+  line-height: 1.7;
+  background: transparent !important;
+}

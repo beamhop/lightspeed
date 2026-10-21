@@ -1,5 +1,7 @@
 // @ts-check
+import react from '@astrojs/react'
 import starlight from '@astrojs/starlight'
+import tailwindcss from '@tailwindcss/vite'
 import { defineConfig } from 'astro/config'
 import { apiSidebar, typedocPlugins } from './api.config.mjs'
 
@@ -9,14 +11,29 @@ export default defineConfig({
   site,
   base: '/lightspeed/',
   trailingSlash: 'ignore',
+  vite: { plugins: [tailwindcss()] },
   integrations: [
+    react(),
     starlight({
       title: 'Beamhop Lightspeed',
       description:
         'Peer-to-peer rooms for the web: typed protocols over WebRTC with Nostr signaling, plus a self-hostable relay with TURN.',
       logo: { src: './src/assets/bunny.svg', alt: 'Beamhop bunny' },
       favicon: '/bunny.svg',
-      customCss: ['./src/styles/brand.css'],
+      customCss: ['./src/styles/starlight.css'],
+      components: {
+        Header: './src/components/starlight/Header.astro',
+        ThemeSelect: './src/components/starlight/ThemeSelect.astro',
+      },
+      expressiveCode: {
+        themes: ['github-dark-default', 'github-light-default'],
+        styleOverrides: {
+          borderRadius: '0.75rem',
+          borderColor: 'var(--border)',
+          codeFontFamily: 'var(--font-mono)',
+          uiFontFamily: 'var(--font-sans)',
+        },
+      },
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/beamhop/lightspeed' }],
       editLink: { baseUrl: 'https://github.com/beamhop/lightspeed/edit/main/apps/docs/' },
       lastUpdated: false,

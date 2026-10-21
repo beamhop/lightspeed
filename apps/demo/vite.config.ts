@@ -1,9 +1,12 @@
-import preact from '@preact/preset-vite'
+import { fileURLToPath } from 'node:url'
+import tailwindcss from '@tailwindcss/vite'
+import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
 export default defineConfig({
   base: '/lightspeed/demo/',
-  plugins: [preact()],
+  plugins: [react(), tailwindcss()],
+  resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   build: { target: 'es2022', sourcemap: true },
   server: { port: 5173 },
 })

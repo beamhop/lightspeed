@@ -4,6 +4,9 @@
     "composite": false,
     "declaration": false,
     "noEmit": true,
+    "jsxImportSource": "react",
+    "baseUrl": ".",
+    "paths": { "@/*": ["./src/*"] },
     "types": ["bun", "vite/client"]
   },
   "include": ["src", "e2e", "vite.config.ts", "playwright.config.ts"]

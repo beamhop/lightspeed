@@ -1,5 +1,9 @@
-import type { ComponentChildren } from 'preact'
-import { useEffect, useState } from 'preact/hooks'
+import { Bug, Files as FilesIcon, LogOut, MessagesSquare, MousePointer2, Phone } from 'lucide-react'
+import { type ReactNode, useEffect, useState } from 'react'
+import { Alert, AlertDescription } from './components/ui/alert'
+import { Badge } from './components/ui/badge'
+import { Button } from './components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
 import { type DemoConfig, readConfig, roomLink } from './config'
 import { loadStored, saveStored, useCallPeers, usePeers } from './hooks'
 import { Bunny } from './mascot'
@@ -13,11 +17,11 @@ import { Room } from './screens/Room'
 import { ShareBox } from './screens/Share'
 
 type Tab = 'room' | 'cursors' | 'files' | 'call'
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'room', label: 'Room' },
-  { id: 'cursors', label: 'Cursors' },
-  { id: 'files', label: 'Files' },
-  { id: 'call', label: 'Call' },
+const TABS: { id: Tab; label: string; icon: typeof Phone }[] = [
+  { id: 'room', label: 'Room', icon: MessagesSquare },
+  { id: 'cursors', label: 'Cursors', icon: MousePointer2 },
+  { id: 'files', label: 'Files', icon: FilesIcon },
+  { id: 'call', label: 'Call', icon: Phone },
 ]
 
 export function App() {
@@ -63,8 +67,8 @@ export function App() {
     await join({ ...cfg, ...patch })
   }
 
+  // opening a shared link joins once, on mount
   useEffect(() => {
-    // Opening a shared link joins straight away.
     if (cfg.roomId && !room) void join(cfg)
   }, [])
 
@@ -77,42 +81,47 @@ export function App() {
 
   if (!room) {
     return (
-      <main class="shell">
+      <Shell>
         <Header />
         <Lobby cfg={cfg} joining={joining} error={error} onJoin={join} />
-      </main>
+      </Shell>
     )
   }
 
   return (
-    <main class="shell">
+    <Shell>
       <Header>
-        <span class={`badge badge-${room.mode}`} data-testid="mode">
+        <Badge
+          variant="outline"
+          className={
+            room.mode === 'local'
+              ? 'border-violet/50 text-violet'
+              : 'border-primary/50 text-primary'
+          }
+          data-testid="mode"
+        >
           {room.mode === 'local' ? 'local tabs' : 'nostr + webrtc'}
-        </span>
-        <button type="button" class="ghost" onClick={() => setDebugOpen((o) => !o)}>
+        </Badge>
+        <Button variant="ghost" size="sm" onClick={() => setDebugOpen(true)}>
+          <Bug />
           Debug
-        </button>
-        <button type="button" class="ghost danger" onClick={leave}>
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-destructive hover:text-destructive"
+          onClick={leave}
+        >
+          <LogOut />
           Leave
-        </button>
+        </Button>
       </Header>
-      {room.notice && <p class="notice">{room.notice}</p>}
+      {room.notice && (
+        <Alert className="mb-4 border-warning/40 text-warning">
+          <AlertDescription className="text-warning/90">{room.notice}</AlertDescription>
+        </Alert>
+      )}
       <ShareBox link={roomLink(location.href, cfg)} roomId={room.roomId} />
-      <nav class="tabs" aria-label="Demo screens">
-        {TABS.map((t) => (
-          <button
-            type="button"
-            key={t.id}
-            class={tab === t.id ? 'tab active' : 'tab'}
-            aria-current={tab === t.id ? 'page' : undefined}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-            {t.id === 'call' && inCall && <span class="dot" aria-label="(in call)" />}
-          </button>
-        ))}
-      </nav>
       {!inCall && (
         <IncomingCall
           room={room}
@@ -122,29 +131,45 @@ export function App() {
           }}
         />
       )}
-      {/* Screens stay mounted so chat, transfers and an ongoing call survive switching tabs. */}
-      <section class="screen" hidden={tab !== 'room'}>
-        <Room room={room} />
-      </section>
-      <section class="screen" hidden={tab !== 'cursors'}>
-        <Cursors room={room} />
-      </section>
-      <section class="screen" hidden={tab !== 'files'}>
-        <Files room={room} />
-      </section>
-      <section class="screen" hidden={tab !== 'call'}>
-        <Call room={room} joinSignal={joinCall} onActiveChange={setInCall} />
-      </section>
-      {debugOpen && (
-        <DebugDrawer
-          room={room}
-          cfg={cfg}
-          onClose={() => setDebugOpen(false)}
-          onOwnRelay={(ownRelay) => rejoinWith({ ownRelay, local: false })}
-        />
-      )}
-    </main>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="gap-4">
+        <TabsList aria-label="Demo screens" className="w-full sm:w-fit">
+          {TABS.map((t) => (
+            <TabsTrigger key={t.id} value={t.id} className="sm:px-4">
+              <t.icon />
+              {t.label}
+              {t.id === 'call' && inCall && (
+                <span className="size-2 rounded-full bg-success" aria-label="(in call)" />
+              )}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        {/* Screens stay mounted so chat, transfers and an ongoing call survive switching tabs. */}
+        <TabsContent value="room" forceMount className="data-[state=inactive]:hidden">
+          <Room room={room} />
+        </TabsContent>
+        <TabsContent value="cursors" forceMount className="data-[state=inactive]:hidden">
+          <Cursors room={room} />
+        </TabsContent>
+        <TabsContent value="files" forceMount className="data-[state=inactive]:hidden">
+          <Files room={room} />
+        </TabsContent>
+        <TabsContent value="call" forceMount className="data-[state=inactive]:hidden">
+          <Call room={room} joinSignal={joinCall} onActiveChange={setInCall} />
+        </TabsContent>
+      </Tabs>
+      <DebugDrawer
+        open={debugOpen}
+        onOpenChange={setDebugOpen}
+        room={room}
+        cfg={cfg}
+        onOwnRelay={(ownRelay) => rejoinWith({ ownRelay, local: false })}
+      />
+    </Shell>
   )
+}
+
+function Shell({ children }: { children: ReactNode }) {
+  return <main className="mx-auto w-full max-w-6xl px-4 pb-12">{children}</main>
 }
 
 function IncomingCall({ room, onJoin }: { room: DemoRoom; onJoin: () => void }) {
@@ -153,27 +178,41 @@ function IncomingCall({ room, onJoin }: { room: DemoRoom; onJoin: () => void }) 
   if (!ids.length) return null
   const names = ids.map((id) => peers.find((p) => p.id === id)?.name ?? id.slice(0, 8))
   return (
-    <div class="notice incoming-call" role="status" data-testid="incoming-call">
-      <span>
-        <strong>{names.join(', ')}</strong> {names.length === 1 ? 'is' : 'are'} in a call
+    <div
+      className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-sm"
+      role="status"
+      data-testid="incoming-call"
+    >
+      <span className="flex items-center gap-2">
+        <span className="relative flex size-2.5">
+          <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-75" />
+          <span className="relative inline-flex size-2.5 rounded-full bg-primary" />
+        </span>
+        <span>
+          <strong>{names.join(', ')}</strong> {names.length === 1 ? 'is' : 'are'} in a call
+        </span>
       </span>
-      <button type="button" class="primary" onClick={onJoin}>
+      <Button size="sm" onClick={onJoin}>
+        <Phone />
         Join call
-      </button>
+      </Button>
     </div>
   )
 }
 
-function Header({ children }: { children?: ComponentChildren }) {
+function Header({ children }: { children?: ReactNode }) {
   return (
-    <header class="top">
-      <a class="brand" href={import.meta.env.BASE_URL}>
+    <header className="mb-6 flex items-center justify-between gap-3 border-b py-3.5">
+      <a
+        className="flex items-center gap-2.5 text-[1.05rem] text-foreground no-underline"
+        href={import.meta.env.BASE_URL}
+      >
         <Bunny size={32} state="smile" />
-        <span>
-          beamhop <strong>lightspeed</strong>
+        <span className="tracking-tight">
+          beamhop <strong className="text-primary">lightspeed</strong>
         </span>
       </a>
-      <div class="top-actions">{children}</div>
+      <div className="flex flex-wrap items-center justify-end gap-1.5">{children}</div>
     </header>
   )
 }

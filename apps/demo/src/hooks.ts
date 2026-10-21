@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks'
+import { useEffect, useState } from 'react'
 import type { DemoPeer, DemoRoom, Hex, TelemetrySnapshot } from './p2p'
 
 export function usePeers(room: DemoRoom): DemoPeer[] {

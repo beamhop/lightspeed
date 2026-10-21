@@ -11,13 +11,23 @@ bun run --cwd apps/docs test     # spec/test-vector and generator tests
 
 Astro runs under the Bun runtime (`bun --bun`) because `starlight-typedoc` ships TypeScript sources.
 
+## UI
+
+Styled with Tailwind v4 and shadcn/ui (`components.json`, components in `src/components/ui/`). The
+tokens live in `src/styles/theme.css` (light and dark, keyed on Starlight's `data-theme`):
+
+- Landing page: `src/pages/index.astro` with `src/layouts/Landing.astro` and `src/styles/landing.css`.
+  shadcn React components render to static HTML; in `.astro` files style links with `buttonVariants()`
+  rather than `<Button asChild>`, which cannot reach into Astro-rendered children.
+- Docs pages: Starlight, restyled by `src/styles/starlight.css` (customCss) and the `Header` /
+  `ThemeSelect` overrides in `src/components/starlight/`.
+
 ## Content
 
 `src/content/docs/`:
 
 | Section | Path |
 |---|---|
-| Landing page (wordmark, mascot, embedded demo) | `index.mdx` |
 | Get started | `get-started/` |
 | Concepts | `concepts/` (identity, signaling, transports, topologies, channels, state, telemetry) |
 | Guides | `guides/` (React, Bun server peer, OIDC, file transfer, calls, Studio, Trystero) |

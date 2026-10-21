@@ -65,7 +65,7 @@ test.describe('local mode: two tabs', () => {
     await carol.close()
 
     // Bob stays on the Room tab: the call still reaches him as a banner.
-    await alice.getByRole('button', { name: 'Call', exact: true }).click()
+    await alice.getByRole('tab', { name: 'Call', exact: true }).click()
     await alice.getByRole('button', { name: 'Start call' }).click()
     const banner = bob.getByTestId('incoming-call')
     await expect(banner).toContainText('alice is in a call')

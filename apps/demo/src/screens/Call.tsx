@@ -1,5 +1,21 @@
-import { useEffect, useRef, useState } from 'preact/hooks'
+import {
+  Mic,
+  MicOff,
+  MonitorUp,
+  MonitorX,
+  Phone,
+  PhoneOff,
+  SwitchCamera,
+  Video as VideoIcon,
+  VideoOff,
+} from 'lucide-react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useCallPeers, usePeers, useTelemetry } from '../hooks'
+import { Bunny } from '../mascot'
 import type { DemoRoom, Hex } from '../p2p'
 
 function Video({ stream, muted, label }: { stream: MediaStream; muted?: boolean; label: string }) {
@@ -8,9 +24,11 @@ function Video({ stream, muted, label }: { stream: MediaStream; muted?: boolean;
     if (ref.current && ref.current.srcObject !== stream) ref.current.srcObject = stream
   }, [stream])
   return (
-    <figure class="tile">
-      <video ref={ref} autoPlay playsInline muted={muted} />
-      <figcaption>{label}</figcaption>
+    <figure className="relative m-0 aspect-[4/3] overflow-hidden rounded-xl border bg-background shadow-sm">
+      <video ref={ref} autoPlay playsInline muted={muted} className="size-full object-cover" />
+      <figcaption className="absolute bottom-2 left-2 rounded-md bg-background/75 px-2 py-0.5 text-xs backdrop-blur">
+        {label}
+      </figcaption>
     </figure>
   )
 }
@@ -58,7 +76,9 @@ export function Call({
     [room],
   )
 
+  // report only when media starts or stops
   useEffect(() => onActiveChange?.(!!local), [local])
+  // fires on the banner's signal only
   useEffect(() => {
     if (joinSignal && !local) void start()
   }, [joinSignal])
@@ -155,62 +175,110 @@ export function Call({
     return t?.candidatePair ?? t?.path ?? 'connecting'
   }
 
+  const connecting = callPeers.filter((id) => !remote[id])
+  const status = connecting.length
+    ? `${connecting.map(nameOf).join(', ')} ${local ? 'connecting…' : 'in the call'}`
+    : local && Object.keys(remote).length === 0
+      ? 'Waiting for others to join the call…'
+      : null
+
   return (
-    <div class="card call">
-      <div class="row">
-        {!local ? (
-          <button type="button" class="primary" onClick={start}>
-            {callPeers.length ? 'Join call' : 'Start call'}
-          </button>
-        ) : (
-          <>
-            <button type="button" onClick={toggleMic} aria-pressed={!micOn}>
-              {micOn ? 'Mute' : 'Unmute'}
-            </button>
-            <button type="button" onClick={toggleCam} aria-pressed={!camOn}>
-              {camOn ? 'Camera off' : 'Camera on'}
-            </button>
-            <button type="button" onClick={switchCamera} disabled={sharing}>
-              Switch camera
-            </button>
-            <button type="button" onClick={toggleShare} aria-pressed={sharing}>
-              {sharing ? 'Stop sharing' : 'Share screen'}
-            </button>
-            <button type="button" class="danger" onClick={stop}>
-              Hang up
-            </button>
-          </>
+    <Card className="call">
+      <CardContent className="grid gap-4">
+        {error && (
+          <Alert variant="destructive" role="alert">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
-      </div>
-      {error && (
-        <p class="error" role="alert">
-          {error}
-        </p>
-      )}
-      <div class="tiles">
-        {local && <Video stream={local} muted label={`you${sharing ? ' (screen)' : ''}`} />}
-        {/* Remote media only plays once we joined, so being in the room isn't eavesdropping. */}
-        {local &&
-          Object.entries(remote)
-            .filter(([id]) => callPeers.includes(id))
-            .map(([id, s]) => (
-              <Video key={id} stream={s} label={`${nameOf(id)} · ${pathOf(id)}`} />
-            ))}
-      </div>
-      {(() => {
-        const connecting = callPeers.filter((id) => !remote[id])
-        if (connecting.length) {
-          return (
-            <p class="muted small">
-              {connecting.map(nameOf).join(', ')} {local ? 'connecting…' : 'in the call'}
-            </p>
-          )
-        }
-        if (local && Object.keys(remote).length === 0) {
-          return <p class="muted small">Waiting for others to join the call…</p>
-        }
-        return null
-      })()}
-    </div>
+        {!local ? (
+          <div className="flex flex-col items-center gap-4 rounded-xl border border-dashed px-6 py-12 text-center">
+            <Bunny size={64} state={callPeers.length ? 'smile' : 'idle'} />
+            <div className="grid gap-1">
+              <p className="font-medium">
+                {callPeers.length ? 'A call is in progress' : 'Audio and video, peer to peer'}
+              </p>
+              <p className="max-w-md text-sm text-muted-foreground">
+                Each peer gets its own media connection; remote media only plays once you join.
+              </p>
+            </div>
+            <Button size="lg" onClick={start}>
+              <Phone />
+              {callPeers.length ? 'Join call' : 'Start call'}
+            </Button>
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <Video stream={local} muted label={`you${sharing ? ' (screen)' : ''}`} />
+            {/* Remote media only plays once we joined, so being in the room isn't eavesdropping. */}
+            {Object.entries(remote)
+              .filter(([id]) => callPeers.includes(id))
+              .map(([id, s]) => (
+                <Video key={id} stream={s} label={`${nameOf(id)} · ${pathOf(id)}`} />
+              ))}
+          </div>
+        )}
+        {status && <p className="text-center text-sm text-muted-foreground">{status}</p>}
+        {local && (
+          <div className="flex flex-wrap items-center justify-center gap-2 rounded-full border bg-muted/40 p-2 sm:mx-auto">
+            <Control
+              label={micOn ? 'Mute' : 'Unmute'}
+              pressed={!micOn}
+              onClick={toggleMic}
+              icon={micOn ? <Mic /> : <MicOff />}
+            />
+            <Control
+              label={camOn ? 'Camera off' : 'Camera on'}
+              pressed={!camOn}
+              onClick={toggleCam}
+              icon={camOn ? <VideoIcon /> : <VideoOff />}
+            />
+            <Control
+              label="Switch camera"
+              onClick={switchCamera}
+              disabled={sharing}
+              icon={<SwitchCamera />}
+            />
+            <Control
+              label={sharing ? 'Stop sharing' : 'Share screen'}
+              pressed={sharing}
+              onClick={toggleShare}
+              icon={sharing ? <MonitorX /> : <MonitorUp />}
+            />
+            <Button variant="destructive" className="rounded-full" onClick={stop}>
+              <PhoneOff />
+              Hang up
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function Control(props: {
+  label: string
+  icon: ReactNode
+  onClick: () => void
+  pressed?: boolean
+  disabled?: boolean
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant={props.pressed ? 'secondary' : 'ghost'}
+          size="icon"
+          className="rounded-full data-[pressed=true]:text-warning"
+          aria-label={props.label}
+          aria-pressed={props.pressed}
+          data-pressed={props.pressed}
+          disabled={props.disabled}
+          onClick={props.onClick}
+        >
+          {props.icon}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{props.label}</TooltipContent>
+    </Tooltip>
   )
 }

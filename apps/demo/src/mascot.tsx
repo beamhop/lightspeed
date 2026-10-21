@@ -1,7 +1,17 @@
+import { cn } from '@/lib/utils'
+
 // The Beamhop bunny. States follow @beamhop/ui's MascotState: idle, spinner, smile, angry, secret.
 export type MascotState = 'idle' | 'spinner' | 'smile' | 'angry' | 'secret'
 
-export function Bunny({ state = 'idle', size = 64 }: { state?: MascotState; size?: number }) {
+export function Bunny({
+  state = 'idle',
+  size = 64,
+  className,
+}: {
+  state?: MascotState
+  size?: number
+  className?: string
+}) {
   const mouth =
     state === 'smile'
       ? 'M27 44 Q32 49 37 44'
@@ -15,7 +25,7 @@ export function Bunny({ state = 'idle', size = 64 }: { state?: MascotState; size
       viewBox="0 0 64 64"
       role="img"
       aria-label={`Beamhop bunny (${state})`}
-      class={state === 'spinner' ? 'bunny bunny-spin' : 'bunny'}
+      className={cn('shrink-0', state === 'spinner' && 'motion-safe:animate-hop', className)}
     >
       <ellipse cx="22" cy="16" rx="6" ry="15" fill="#5EEAD4" transform="rotate(-12 22 16)" />
       <ellipse cx="42" cy="16" rx="6" ry="15" fill="#5EEAD4" transform="rotate(12 42 16)" />
@@ -29,12 +39,12 @@ export function Bunny({ state = 'idle', size = 64 }: { state?: MascotState; size
           <circle cx="25" cy="35" r="3" fill="#0B0E1A" />
           <circle cx="39" cy="35" r="3" fill="#0B0E1A" />
           {state === 'angry' && (
-            <path d="M21 29 L28 32 M43 29 L36 32" stroke="#0B0E1A" stroke-width="2" />
+            <path d="M21 29 L28 32 M43 29 L36 32" stroke="#0B0E1A" strokeWidth="2" />
           )}
         </>
       )}
       <ellipse cx="32" cy="41" rx="2.6" ry="2" fill="#8B7BFF" />
-      <path d={mouth} stroke="#0B0E1A" stroke-width="2" fill="none" stroke-linecap="round" />
+      <path d={mouth} stroke="#0B0E1A" strokeWidth="2" fill="none" strokeLinecap="round" />
     </svg>
   )
 }

@@ -1,6 +1,8 @@
 # Beamhop demo (`apps/demo`)
 
-Preact + Vite demo client for `@beamhop/p2p`, published at `/lightspeed/demo/` on GitHub Pages.
+React + Vite demo client for `@beamhop/p2p`, published at `/lightspeed/demo/` on GitHub Pages. The UI is
+Tailwind v4 + shadcn/ui (`components.json`, components in `src/components/ui/`, tokens in
+`src/styles.css`); add components with `bunx shadcn@latest add <name>` from `apps/demo`.
 
 Screens: **Lobby** (create/join by link or QR, relay status, anonymous or NIP-07 identity),
 **Room** (presence + chat on a reliable channel), **Cursors** (shared canvas on an unreliable

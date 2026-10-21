@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'preact/hooks'
+import { type PointerEvent, useEffect, useRef, useState } from 'react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { usePeers } from '../hooks'
 import type { DemoRoom, Hex } from '../p2p'
 
@@ -30,7 +31,7 @@ export function Cursors({ room }: { room: DemoRoom }) {
     return () => clearInterval(t)
   }, [])
 
-  const onMove = (e: PointerEvent) => {
+  const onMove = (e: PointerEvent<HTMLDivElement>) => {
     const el = areaRef.current
     if (!el) return
     const now = performance.now()
@@ -44,40 +45,48 @@ export function Cursors({ room }: { room: DemoRoom }) {
 
   const now = Date.now()
   return (
-    <div class="card">
-      <p class="muted small">
-        Move your pointer. Positions go out on an unreliable, unordered channel (maxRetransmits 0),
-        so a lost frame is replaced by the next one instead of being retransmitted.
-      </p>
-      <div
-        class="canvas"
-        ref={areaRef}
-        onPointerMove={onMove}
-        onPointerDown={onMove}
-        data-testid="cursor-canvas"
-      >
-        {peers
-          .filter((p) => !p.self)
-          .map((p) => {
-            const c = cursors[p.id]
-            if (!c || now - c.at > STALE_MS) return null
-            return (
-              <div
-                key={p.id}
-                class="cursor"
-                style={{ left: `${c.x * 100}%`, top: `${c.y * 100}%`, color: p.color }}
-              >
-                <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-                  <path d="M1 1 L1 15 L5 11 L8 17 L10 16 L7 10 L13 10 Z" fill="currentColor" />
-                </svg>
-                <span class="cursor-label" style={{ background: p.color }}>
-                  {p.name}
-                  {p.rttMs !== undefined ? ` · ${p.rttMs} ms` : ''}
-                </span>
-              </div>
-            )
-          })}
-      </div>
-    </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Live cursors</CardTitle>
+        <CardDescription>
+          Move your pointer. Positions go out on an unreliable, unordered channel (maxRetransmits
+          0), so a lost frame is replaced by the next one instead of being retransmitted.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div
+          className="cursor-canvas relative h-[60vh] min-h-[300px] overflow-hidden rounded-xl border border-dashed bg-background/60"
+          ref={areaRef}
+          onPointerMove={onMove}
+          onPointerDown={onMove}
+          data-testid="cursor-canvas"
+        >
+          {peers
+            .filter((p) => !p.self)
+            .map((p) => {
+              const c = cursors[p.id]
+              if (!c || now - c.at > STALE_MS) return null
+              return (
+                <div
+                  key={p.id}
+                  className="pointer-events-none absolute motion-safe:transition-[left,top] motion-safe:duration-[60ms] motion-safe:ease-linear"
+                  style={{ left: `${c.x * 100}%`, top: `${c.y * 100}%`, color: p.color }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                    <path d="M1 1 L1 15 L5 11 L8 17 L10 16 L7 10 L13 10 Z" fill="currentColor" />
+                  </svg>
+                  <span
+                    className="ml-1 inline-block rounded-md px-1.5 py-px text-xs font-medium whitespace-nowrap text-background shadow-md"
+                    style={{ background: p.color }}
+                  >
+                    {p.name}
+                    {p.rttMs !== undefined ? ` · ${p.rttMs} ms` : ''}
+                  </span>
+                </div>
+              )
+            })}
+        </div>
+      </CardContent>
+    </Card>
   )
 }

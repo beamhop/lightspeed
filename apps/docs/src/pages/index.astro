@@ -1,0 +1,395 @@
+---
+// The landing page, built from shadcn/ui components rendered to static HTML (no client JS beyond
+// the theme toggle and the copy button).
+import { Code } from 'astro:components'
+import {
+  Activity,
+  ArrowRight,
+  Boxes,
+  ExternalLink,
+  FileCode2,
+  Network,
+  Radio,
+  Server,
+  ShieldCheck,
+  TriangleAlert,
+} from 'lucide-react'
+import bunny from '@/assets/bunny.svg'
+import GitHubIcon from '@/components/GitHubIcon.astro'
+import ThemeToggle from '@/components/ThemeToggle.astro'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { buttonVariants } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import Landing from '@/layouts/Landing.astro'
+import { cn } from '@/lib/utils'
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '')
+const href = (path: string) => `${base}/${path}`
+const github = 'https://github.com/beamhop/lightspeed'
+
+const nav = [
+  { label: 'Docs', href: href('get-started/') },
+  { label: 'Concepts', href: href('concepts/identity/') },
+  { label: 'Relay', href: href('relay/install/') },
+  { label: 'API', href: href('api/') },
+]
+
+const features = [
+  {
+    icon: FileCode2,
+    title: 'Typed protocol',
+    body: 'Declare actions and requests once with Zod, Valibot or ArkType (Standard Schema). Every message is validated on receipt and typed end to end.',
+  },
+  {
+    icon: Radio,
+    title: 'No server by default',
+    body: 'Peers find each other through public Nostr relays with encrypted ephemeral events and talk directly over WebRTC. Relays learn a topic hash and traffic volume, nothing else.',
+  },
+  {
+    icon: Network,
+    title: 'A ladder, not a cliff',
+    body: 'Each peer pair climbs direct → TURN → data relay. With your own Beamhop relay, symmetric NATs and corporate firewalls stop being dead ends.',
+  },
+  {
+    icon: Boxes,
+    title: 'Everything you need for apps',
+    body: 'Mesh and host-authoritative star topologies, reliable and unreliable channels, chunked file streams, calls, LWW maps and logs for shared state, and React hooks.',
+  },
+  {
+    icon: Server,
+    title: 'One relay binary',
+    body: '`beamhop-relay` is a full Nostr relay, a TURN server, a data relay, Blossom media and Lightning payments in one Bun process, with a mobile-first admin UI.',
+  },
+  {
+    icon: Activity,
+    title: 'See what the network does',
+    body: 'The telemetry bus reports paths, RTT, bytes per channel and transfer progress. Studio turns it into a topology graph, timeline and fault injector.',
+  },
+]
+
+const ladder = [
+  { step: 'direct', note: 'WebRTC over public STUN' },
+  { step: 'TURN', note: 'built into the relay' },
+  { step: 'data relay', note: 'WebSocket fallback' },
+]
+
+const next = [
+  { title: 'Get started', href: href('get-started/'), body: 'A room in five minutes, then React.' },
+  {
+    title: 'Concepts',
+    href: href('concepts/identity/'),
+    body: 'Identity, signaling, transports, topologies, channels, state, telemetry.',
+  },
+  {
+    title: 'Relay operator manual',
+    href: href('relay/install/'),
+    body: 'Binary, Docker or Compose with Caddy; TLS, ports, apps and the admin UI.',
+  },
+  {
+    title: 'Protocol spec',
+    href: href('protocol/'),
+    body: 'The normative wire format for interop and audits.',
+  },
+]
+
+const install = 'bun add @beamhop/p2p @beamhop/signaling-nostr zod'
+
+const sample = `import { action, anonymous, createRoom, defineProtocol } from '@beamhop/p2p'
+import { webrtcTransport } from '@beamhop/p2p/webrtc'
+import { nostrSignaling } from '@beamhop/signaling-nostr'
+import { z } from 'zod'
+
+const protocol = defineProtocol({
+  chat: action(z.object({ text: z.string().min(1).max(2000) })),
+})
+
+const room = await createRoom({
+  appId: 'my-first-app',
+  roomId: 'lobby',
+  identity: anonymous(),
+  signaling: nostrSignaling({ relays: ['wss://relay.damus.io', 'wss://nos.lol'] }),
+  transports: [webrtcTransport({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] })],
+  protocol,
+})
+
+room.onPeerJoin((peer) => console.log('joined', peer.pubkey))
+
+const chat = room.action('chat')
+chat.onMessage(({ text }, from) => console.log(from, text))
+await chat.send({ text: 'hello, peers' })`
+---
+
+<Landing
+  title="Beamhop Lightspeed"
+  description="Peer-to-peer rooms for the web: typed protocols over WebRTC with Nostr signaling, plus a self-hostable relay with TURN."
+>
+  <header class="sticky top-0 z-40 border-b bg-background/80 backdrop-blur-lg">
+    <div class="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4 sm:px-6">
+      <a href={href('')} class="flex items-center gap-2 font-semibold tracking-tight">
+        <img src={bunny.src} alt="" width="28" height="28" />
+        <span>beamhop <span class="text-primary">lightspeed</span></span>
+      </a>
+      <nav class="hidden items-center gap-0.5 md:flex" aria-label="Main">
+        {
+          nav.map((l) => (
+            <a
+              href={l.href}
+              class={cn(
+                buttonVariants({ variant: 'ghost', size: 'sm' }),
+                'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {l.label}
+            </a>
+          ))
+        }
+      </nav>
+      <div class="ml-auto flex items-center gap-1">
+        <a href={github} class={buttonVariants({ variant: 'ghost', size: 'icon' })}>
+          <span class="sr-only">GitHub</span>
+          <GitHubIcon class="size-4" />
+        </a>
+        <ThemeToggle />
+        <a href={href('get-started/')} class={cn(buttonVariants({ size: 'sm' }), 'ml-1 hidden sm:inline-flex')}>Get started</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="relative overflow-hidden border-b">
+      <div class="bh-grid pointer-events-none absolute inset-0" aria-hidden="true"></div>
+      <div
+        class="pointer-events-none absolute -top-40 left-1/2 h-[480px] w-[900px] -translate-x-1/2 rounded-full bg-gradient-to-r from-primary/20 via-violet/20 to-primary/10 blur-3xl"
+        aria-hidden="true"
+      >
+      </div>
+      <div
+        class="relative mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-4 py-20 sm:px-6 md:py-28 lg:grid-cols-[1.3fr_1fr]"
+      >
+        <div class="flex min-w-0 flex-col items-start gap-6">
+          <a href={href('changelog/')}>
+            <Badge variant="outline" className="gap-1.5 rounded-full bg-background/60 px-3 py-1">
+              <span class="size-1.5 rounded-full bg-primary"></span>
+              0.x preview · wire protocol <code class="font-mono">beamhop/v1</code>
+              <ArrowRight className="size-3" />
+            </Badge>
+          </a>
+          <h1 class="text-5xl leading-[1.02] font-bold tracking-tighter sm:text-6xl lg:text-7xl">
+            beamhop<br />
+            <span class="bg-gradient-to-r from-primary to-violet bg-clip-text text-transparent">
+              lightspeed
+            </span>
+          </h1>
+          <p class="max-w-xl text-lg text-pretty text-muted-foreground">
+            Typed peer-to-peer rooms for browsers, Bun and Node. Nostr signaling, WebRTC data
+            channels, and a self-hostable relay with TURN when direct paths fail.
+          </p>
+          <div class="flex flex-wrap gap-3">
+            <a href={href('get-started/')} class={buttonVariants({ size: 'lg' })}>
+                Five-minute room
+                <ArrowRight />
+              </a>
+            <a href={href('demo/')} class={buttonVariants({ size: 'lg', variant: 'outline' })}>
+                Try the live demo
+                <ExternalLink />
+              </a>
+            <a href={href('relay/install/')} class={buttonVariants({ size: 'lg', variant: 'ghost' })}>Run a relay</a>
+          </div>
+          <div
+            class="flex w-full max-w-xl items-center gap-2 rounded-lg border bg-muted/50 py-1.5 pr-1.5 pl-4 font-mono text-sm"
+          >
+            <span class="text-muted-foreground select-none">$</span>
+            <code class="min-w-0 flex-1 truncate">{install}</code>
+            <button
+              type="button"
+              class={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'bh-copy font-sans')}
+              data-copy={install}
+            >
+              Copy
+            </button>
+          </div>
+        </div>
+        <div class="relative mx-auto hidden aspect-square w-full max-w-sm lg:block">
+          <div
+            class="absolute inset-8 rounded-full bg-gradient-to-br from-primary/30 to-violet/30 blur-2xl"
+            aria-hidden="true"
+          >
+          </div>
+          <img
+            src={bunny.src}
+            alt="The Beamhop bunny"
+            class="relative size-full motion-safe:animate-[bh-float_6s_ease-in-out_infinite]"
+          />
+        </div>
+      </div>
+    </section>
+
+    <section class="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+      <div class="mb-10 max-w-2xl">
+        <h2 class="text-3xl font-semibold tracking-tight">Rooms, not servers</h2>
+        <p class="mt-3 text-muted-foreground">
+          Everything a multiplayer web app needs between peers, and a relay for when the network
+          says no.
+        </p>
+      </div>
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {
+          features.map((f) => (
+            <Card className="gap-4 transition-colors hover:border-primary/40">
+              <CardHeader className="gap-3">
+                <span class="grid size-10 place-items-center rounded-lg border bg-primary/10 text-primary">
+                  <f.icon className="size-5" />
+                </span>
+                <CardTitle>{f.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p
+                  class="text-sm leading-relaxed text-muted-foreground [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:font-mono [&_code]:text-foreground"
+                  set:html={f.body.replace(/`([^`]+)`/g, '<code>$1</code>')}
+                />
+              </CardContent>
+            </Card>
+          ))
+        }
+      </div>
+    </section>
+
+    <section class="border-y bg-muted/30">
+      <div
+        class="mx-auto grid max-w-6xl grid-cols-1 items-center gap-10 px-4 py-20 sm:px-6 lg:grid-cols-[1fr_1.25fr]"
+      >
+        <div class="flex flex-col gap-6">
+          <div>
+            <h2 class="text-3xl font-semibold tracking-tight">A room in a few lines</h2>
+            <p class="mt-3 text-muted-foreground">
+              Declare a protocol, join a room, send typed messages. Peers with the same app and
+              room id meet; each pair picks the best path it can reach.
+            </p>
+          </div>
+          <ol class="grid gap-3">
+            {
+              ladder.map((l, i) => (
+                <li class="flex items-center gap-3">
+                  <span class="grid size-8 shrink-0 place-items-center rounded-full border bg-background font-mono text-xs text-primary">
+                    {i + 1}
+                  </span>
+                  <span class="font-medium">{l.step}</span>
+                  <span class="text-sm text-muted-foreground">{l.note}</span>
+                </li>
+              ))
+            }
+          </ol>
+          <div class="flex gap-3">
+            <a href={href('get-started/')} class={buttonVariants({ variant: 'outline' })}>Read the guide <ArrowRight /></a>
+            <a href={href('get-started/react/')} class={buttonVariants({ variant: 'ghost' })}>Add React</a>
+          </div>
+        </div>
+        <Card className="gap-0 overflow-hidden border-[#2a3050] bg-[#0b0e1a] py-0 text-[#e8eaf6] shadow-xl">
+          <div class="flex items-center gap-2 border-b border-[#2a3050] px-4 py-3">
+            <span class="size-3 rounded-full bg-[#f87171]/80"></span>
+            <span class="size-3 rounded-full bg-[#fbbf24]/80"></span>
+            <span class="size-3 rounded-full bg-[#4ade80]/80"></span>
+            <span class="ml-2 font-mono text-xs text-[#9aa0c3]">main.ts</span>
+          </div>
+          <div class="bh-code">
+            <Code code={sample} lang="ts" theme="github-dark-default" />
+          </div>
+        </Card>
+      </div>
+    </section>
+
+    <section class="mx-auto max-w-6xl px-4 py-20 sm:px-6" id="demo">
+      <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
+        <div class="max-w-2xl">
+          <h2 class="text-3xl font-semibold tracking-tight">Live demo</h2>
+          <p class="mt-3 text-muted-foreground">
+            Presence, chat, live cursors, file drop and calls, running on public relays and public
+            STUN only. Open the same room link on another device to see peers connect.
+          </p>
+        </div>
+        <a href={href('demo/')} target="_blank" rel="noopener" class={buttonVariants({ variant: 'outline' })}>
+            Open in a new tab <ExternalLink />
+          </a>
+      </div>
+      <Card className="overflow-hidden p-0 shadow-xl">
+        <iframe
+          class="block h-[min(720px,80vh)] w-full bg-[#0b0e1a]"
+          src={href('demo/')}
+          title="Beamhop live demo"
+          loading="lazy"
+          allow="camera; microphone; display-capture; clipboard-write"></iframe>
+      </Card>
+    </section>
+
+    <section class="mx-auto max-w-6xl px-4 pb-20 sm:px-6">
+      <h2 class="mb-8 text-3xl font-semibold tracking-tight">Where to next</h2>
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {
+          next.map((n) => (
+            <a href={n.href} class="group">
+              <Card className="h-full gap-2 transition-colors group-hover:border-primary/50 group-hover:bg-accent/40">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    {n.title}
+                    <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+                  </CardTitle>
+                  <CardDescription>{n.body}</CardDescription>
+                </CardHeader>
+              </Card>
+            </a>
+          ))
+        }
+      </div>
+      <Alert className="mt-10 border-warning/40 bg-warning/5">
+        <TriangleAlert className="text-warning" />
+        <AlertTitle>0.x and subject to change</AlertTitle>
+        <AlertDescription>
+          Every API on this site may change until 1.0. The wire protocol is versioned separately
+          (beamhop/v1).
+        </AlertDescription>
+      </Alert>
+    </section>
+  </main>
+
+  <footer class="border-t">
+    <div
+      class="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6"
+    >
+      <p class="flex items-center gap-2">
+        <ShieldCheck className="size-4 text-primary" />
+        Library, Studio, UI and CLI are MIT. The relay and its engines are AGPL-3.0; using the library
+        never puts your app under the AGPL.
+      </p>
+      <div class="flex gap-4">
+        <a class="hover:text-foreground" href={href('changelog/')}>Changelog</a>
+        <a class="hover:text-foreground" href={href('troubleshooting/')}>Troubleshooting</a>
+        <a class="hover:text-foreground" href={github}>GitHub</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    for (const button of document.querySelectorAll<HTMLButtonElement>('.bh-copy')) {
+      button.addEventListener('click', async () => {
+        await navigator.clipboard?.writeText(button.dataset.copy ?? '').catch(() => {})
+        button.textContent = 'Copied'
+        setTimeout(() => {
+          button.textContent = 'Copy'
+        }, 1500)
+      })
+    }
+  </script>
+</Landing>
+
+<style is:global>
+  @keyframes bh-float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-14px);
+    }
+  }
+</style>

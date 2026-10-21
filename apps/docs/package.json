@@ -12,12 +12,28 @@
     "test": "bun test scripts"
   },
   "dependencies": {
+    "@astrojs/react": "^7.1.0",
     "@astrojs/starlight": "^0.42.6",
     "@beamhop/p2p": "workspace:*",
-    "astro": "^7.4.1"
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
+    "astro": "^7.4.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "cn": "^0.5.0",
+    "lucide-react": "^1.61.0",
+    "radix-ui": "^1.8.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "starlight-typedoc": "^0.23.1",
+    "tailwindcss": "^4.3.3",
+    "tw-animate-css": "^1.4.0",
     "typedoc": "^0.28.20",
     "typedoc-plugin-markdown": "^4.14.1"
   }
