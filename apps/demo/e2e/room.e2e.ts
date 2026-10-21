@@ -50,6 +50,37 @@ test.describe('local mode: two tabs', () => {
     await expect(presence(alice)).toHaveText(['alice'])
   })
 
+  test('late joiner gets chat history; incoming call can be joined from any tab', async () => {
+    const roomId = `e2e-call-${Date.now().toString(36)}`
+    const alice = await context.newPage()
+    const bob = await context.newPage()
+    await joinAs(alice, 'alice', roomId)
+    await joinAs(bob, 'bob', roomId)
+    await expect(presence(alice)).toHaveText(['alice', 'bob'])
+    await sendChat(alice, 'before carol')
+
+    const carol = await context.newPage()
+    await joinAs(carol, 'carol', roomId)
+    await expect(carol.getByTestId('messages')).toContainText('before carol')
+    await carol.close()
+
+    // Bob stays on the Room tab: the call still reaches him as a banner.
+    await alice.getByRole('button', { name: 'Call', exact: true }).click()
+    await alice.getByRole('button', { name: 'Start call' }).click()
+    const banner = bob.getByTestId('incoming-call')
+    await expect(banner).toContainText('alice is in a call')
+    await banner.getByRole('button', { name: 'Join call' }).click()
+
+    // Remote video actually decodes on both sides (ICE candidates made it across).
+    const remoteWidth = (page: Page, name: string) =>
+      page
+        .locator('.call figure', { hasText: name })
+        .locator('video')
+        .evaluate((v: HTMLVideoElement) => v.videoWidth)
+    await expect.poll(() => remoteWidth(alice, 'bob'), { timeout: 15_000 }).toBeGreaterThan(0)
+    await expect.poll(() => remoteWidth(bob, 'alice'), { timeout: 15_000 }).toBeGreaterThan(0)
+  })
+
   test('create room from the lobby and join by link', async () => {
     const alice = await context.newPage()
     await alice.goto('?local=1')

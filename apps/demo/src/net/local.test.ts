@@ -96,6 +96,41 @@ describe('local (BroadcastChannel) fallback', () => {
     expect(atA.find((m) => m.text === 'hello bob')?.from).toBe(a.self.id)
   })
 
+  test('a late joiner receives the chat history, ordered and deduped', async () => {
+    const id = freshRoom()
+    const a = join('alice', id)
+    const b = join('bob', id)
+    await until(() => a.peers().length === 2 && b.peers().length === 2)
+    a.sendChat('one')
+    b.sendChat('two')
+    await until(() => a.messages().length === 2 && b.messages().length === 2)
+    const c = join('carol', id)
+    // Both alice and bob send their history; carol keeps one copy of each message.
+    await until(() => c.messages().length === 2)
+    await new Promise((r) => setTimeout(r, 60))
+    expect(c.messages().map((m) => [m.text, m.name])).toEqual([
+      ['one', 'alice'],
+      ['two', 'bob'],
+    ])
+  })
+
+  test('peers learn who is in a call', async () => {
+    const id = freshRoom()
+    const a = join('alice', id)
+    const b = join('bob', id)
+    await until(() => a.peers().length === 2 && b.peers().length === 2)
+    const seen: string[][] = []
+    b.onCallPeers((ids) => seen.push(ids))
+    await a.startCall({} as MediaStream)
+    await until(() => b.callPeers().includes(a.self.id))
+    expect(seen.at(-1)).toEqual([a.self.id])
+    // A late joiner hears about the running call too.
+    const c = join('carol', id)
+    await until(() => c.callPeers().includes(a.self.id))
+    a.stopCall()
+    await until(() => b.callPeers().length === 0 && c.callPeers().length === 0)
+  })
+
   test('cursor positions arrive', async () => {
     const id = freshRoom()
     const a = join('alice', id)

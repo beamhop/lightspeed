@@ -1,4 +1,4 @@
-import type { Unsubscribe } from '../p2p'
+import type { ChatMessage, Unsubscribe } from '../p2p'
 
 /** Minimal typed event emitter shared by both room implementations. */
 export class Emitter<T> {
@@ -34,4 +34,36 @@ export function messageId(): string {
 export function pushCapped<T>(list: T[], item: T, max = 50): void {
   list.push(item)
   if (list.length > max) list.splice(0, list.length - max)
+}
+
+/** How many chat messages a room keeps and hands to late joiners. */
+export const CHAT_HISTORY = 200
+
+/**
+ * Chat history shared by both room implementations: dedups by id (live messages and history from
+ * several peers overlap) and keeps messages ordered by send time.
+ */
+export class ChatLog {
+  private list: ChatMessage[] = []
+  private ids = new Set<string>()
+
+  constructor(private readonly max = CHAT_HISTORY) {}
+
+  /** Returns false for a message already in the log. */
+  add(m: ChatMessage): boolean {
+    if (this.ids.has(m.id)) return false
+    this.ids.add(m.id)
+    let i = this.list.length
+    while (i > 0 && (this.list[i - 1]?.at ?? 0) > m.at) i--
+    this.list.splice(i, 0, m)
+    while (this.list.length > this.max) {
+      const old = this.list.shift()
+      if (old) this.ids.delete(old.id)
+    }
+    return true
+  }
+
+  all(): ChatMessage[] {
+    return [...this.list]
+  }
 }

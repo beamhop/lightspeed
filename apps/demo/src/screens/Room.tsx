@@ -5,17 +5,15 @@ import type { ChatMessage, DemoRoom } from '../p2p'
 
 export function Room({ room }: { room: DemoRoom }) {
   const peers = usePeers(room)
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [messages, setMessages] = useState<ChatMessage[]>(() => room.messages())
   const [draft, setDraft] = useState('')
   const listRef = useRef<HTMLOListElement>(null)
 
-  useEffect(
-    () =>
-      room.onChat((m) =>
-        setMessages((prev) => (prev.some((p) => p.id === m.id) ? prev : [...prev, m].slice(-200))),
-      ),
-    [room],
-  )
+  useEffect(() => {
+    // The room keeps the (ordered, deduped) history, including what peers sync to us on join.
+    setMessages(room.messages())
+    return room.onChat(() => setMessages(room.messages()))
+  }, [room])
   useEffect(() => {
     listRef.current?.lastElementChild?.scrollIntoView({ block: 'end' })
   }, [messages.length])

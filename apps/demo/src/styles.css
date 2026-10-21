@@ -201,6 +201,20 @@ form.card {
   padding: 8px 12px;
 }
 
+.incoming-call {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  background: color-mix(in srgb, var(--bh-teal) 12%, transparent);
+  border-color: color-mix(in srgb, var(--bh-teal) 40%, transparent);
+}
+
+[hidden] {
+  display: none !important;
+}
+
 .badge {
   font-size: 0.75rem;
   border-radius: 999px;
@@ -316,6 +330,16 @@ form.card {
   border-bottom: 2px solid transparent;
   border-radius: 0;
   padding: 10px 14px;
+}
+
+.tab .dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--bh-danger);
+  vertical-align: middle;
 }
 
 .tab.active {

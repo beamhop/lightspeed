@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks'
-import type { DemoPeer, DemoRoom, TelemetrySnapshot } from './p2p'
+import type { DemoPeer, DemoRoom, Hex, TelemetrySnapshot } from './p2p'
 
 export function usePeers(room: DemoRoom): DemoPeer[] {
   const [peers, setPeers] = useState(() => room.peers())
@@ -8,6 +8,15 @@ export function usePeers(room: DemoRoom): DemoPeer[] {
     return room.onPeers(setPeers)
   }, [room])
   return peers
+}
+
+export function useCallPeers(room: DemoRoom): Hex[] {
+  const [ids, setIds] = useState(() => room.callPeers())
+  useEffect(() => {
+    setIds(room.callPeers())
+    return room.onCallPeers(setIds)
+  }, [room])
+  return ids
 }
 
 export function useTelemetry(room: DemoRoom): TelemetrySnapshot {

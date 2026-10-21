@@ -1,7 +1,7 @@
 import type { ComponentChildren } from 'preact'
 import { useEffect, useState } from 'preact/hooks'
 import { type DemoConfig, readConfig, roomLink } from './config'
-import { loadStored, saveStored } from './hooks'
+import { loadStored, saveStored, useCallPeers, usePeers } from './hooks'
 import { Bunny } from './mascot'
 import { type DemoRoom, joinDemoRoom } from './p2p'
 import { Call } from './screens/Call'
@@ -29,6 +29,9 @@ export function App() {
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('room')
   const [debugOpen, setDebugOpen] = useState(false)
+  const [inCall, setInCall] = useState(false)
+  // Bumped by the incoming-call banner; the Call screen starts media when it changes.
+  const [joinCall, setJoinCall] = useState(0)
 
   async function join(next: DemoConfig) {
     setCfg(next)
@@ -49,12 +52,14 @@ export function App() {
   async function leave() {
     await room?.leave()
     setRoom(null)
+    setInCall(false)
     history.replaceState(null, '', location.pathname + (cfg.local ? '?local=1' : ''))
   }
 
   async function rejoinWith(patch: Partial<DemoConfig>) {
     await room?.leave()
     setRoom(null)
+    setInCall(false)
     await join({ ...cfg, ...patch })
   }
 
@@ -104,14 +109,31 @@ export function App() {
             onClick={() => setTab(t.id)}
           >
             {t.label}
+            {t.id === 'call' && inCall && <span class="dot" aria-label="(in call)" />}
           </button>
         ))}
       </nav>
-      <section class="screen">
-        {tab === 'room' && <Room room={room} />}
-        {tab === 'cursors' && <Cursors room={room} />}
-        {tab === 'files' && <Files room={room} />}
-        {tab === 'call' && <Call room={room} />}
+      {!inCall && (
+        <IncomingCall
+          room={room}
+          onJoin={() => {
+            setTab('call')
+            setJoinCall((n) => n + 1)
+          }}
+        />
+      )}
+      {/* Screens stay mounted so chat, transfers and an ongoing call survive switching tabs. */}
+      <section class="screen" hidden={tab !== 'room'}>
+        <Room room={room} />
+      </section>
+      <section class="screen" hidden={tab !== 'cursors'}>
+        <Cursors room={room} />
+      </section>
+      <section class="screen" hidden={tab !== 'files'}>
+        <Files room={room} />
+      </section>
+      <section class="screen" hidden={tab !== 'call'}>
+        <Call room={room} joinSignal={joinCall} onActiveChange={setInCall} />
       </section>
       {debugOpen && (
         <DebugDrawer
@@ -122,6 +144,23 @@ export function App() {
         />
       )}
     </main>
+  )
+}
+
+function IncomingCall({ room, onJoin }: { room: DemoRoom; onJoin: () => void }) {
+  const ids = useCallPeers(room)
+  const peers = usePeers(room)
+  if (!ids.length) return null
+  const names = ids.map((id) => peers.find((p) => p.id === id)?.name ?? id.slice(0, 8))
+  return (
+    <div class="notice incoming-call" role="status" data-testid="incoming-call">
+      <span>
+        <strong>{names.join(', ')}</strong> {names.length === 1 ? 'is' : 'are'} in a call
+      </span>
+      <button type="button" class="primary" onClick={onJoin}>
+        Join call
+      </button>
+    </div>
   )
 }
 

@@ -36,7 +36,7 @@ import type {
   TelemetrySnapshot,
   Unsubscribe,
 } from '../p2p'
-import { Emitter, messageId, pushCapped } from './emitter'
+import { ChatLog, Emitter, messageId, pushCapped } from './emitter'
 import { describeCandidatePath, selectedCandidateType } from './rtc'
 
 // ---------------------------------------------------------------- demo protocol
@@ -54,10 +54,17 @@ type RtcSignal =
   | { type: 'offer' | 'answer'; sdp: string }
   | { type: 'candidate'; candidate: RTCIceCandidateInit | null }
 type CallPayload = { t: 'state'; active: boolean } | { t: 'rtc'; signal: RtcSignal }
+interface HistoryPayload {
+  messages: { id: string; from: Hex; name: string; text: string; at: number }[]
+}
 
-/** The demo's typed protocol: reliable chat, unreliable low-priority cursors, call negotiation. */
+/**
+ * The demo's typed protocol: reliable chat (plus a history catch-up sent to late joiners),
+ * unreliable low-priority cursors, call negotiation.
+ */
 export const demoProtocol = defineProtocol({
   chat: action(any<ChatPayload>()),
+  history: action(any<HistoryPayload>(), { priority: 'low' }),
   cursor: action(any<CursorPayload>(), { reliability: 'unreliable', priority: 'low' }),
   call: action(any<CallPayload>(), { priority: 'high' }),
 })
@@ -168,6 +175,8 @@ export async function joinBeamhopRoom(
   const fileEv = new Emitter<FileProgress>()
   const telemetryEv = new Emitter<TelemetrySnapshot>()
   const streamEv = new Emitter<{ peer: Hex; stream: MediaStream | null }>()
+  const callPeersEv = new Emitter<Hex[]>()
+  const chatLog = new ChatLog()
   const subs: Unsubscribe[] = []
 
   const peerTel = (id: Hex): PeerTelemetry => {
@@ -243,12 +252,16 @@ export async function joinBeamhopRoom(
     room.onPeerJoin((p) => {
       emitPeers()
       if (localStream) void sendCall(p.pubkey, { t: 'state', active: true })
+      // Chat is ephemeral on the wire, so catch the newcomer up with what this peer has seen.
+      const messages = chatLog.all()
+      if (messages.length) void history.send({ messages }, { to: p.pubkey }).catch(() => {})
     }),
   )
   subs.push(room.onPeerUpdate(emitPeers))
   subs.push(
     room.onPeerLeave((p) => {
       tel.delete(p.pubkey)
+      if (inCall.delete(p.pubkey)) emitCallPeers()
       closePc(p.pubkey)
       emitPeers()
     }),
@@ -263,16 +276,34 @@ export async function joinBeamhopRoom(
   // ------------------------------------------------------------- chat, cursors
 
   const chat = room.action('chat')
+  const history = room.action('history')
   const cursor = room.action('cursor')
+  const addChat = (m: ChatMessage) => {
+    if (chatLog.add(m)) chatEv.emit(m)
+  }
   subs.push(
     chat.onMessage((data, from) => {
-      chatEv.emit({
+      addChat({
         id: data.id,
         from,
         name: nameOf(room.peer(from), from),
         text: data.text,
         at: data.at,
       })
+    }),
+  )
+  subs.push(
+    history.onMessage((data) => {
+      for (const m of data.messages ?? []) {
+        if (typeof m?.id !== 'string' || typeof m.text !== 'string') continue
+        addChat({
+          id: m.id,
+          from: String(m.from),
+          name: String(m.name ?? ''),
+          text: m.text.slice(0, 2000),
+          at: Number(m.at) || 0,
+        })
+      }
     }),
   )
 
@@ -310,6 +341,7 @@ export async function joinBeamhopRoom(
   const pcs = new Map<Hex, RTCPeerConnection>()
   const remoteStreams = new Map<Hex, MediaStream>()
   const hasRtc = () => typeof RTCPeerConnection !== 'undefined'
+  const emitCallPeers = () => callPeersEv.emit([...inCall])
 
   function sendCall(to: Hex, payload: CallPayload): Promise<void> {
     return call.send(payload, { to }).catch(() => {})
@@ -327,8 +359,13 @@ export async function joinBeamhopRoom(
   function newPc(id: Hex): RTCPeerConnection {
     const pc = new RTCPeerConnection({ iceServers })
     pcs.set(id, pc)
+    // RTCIceCandidate's fields are prototype getters: send the plain init dict, or the codec
+    // serializes `{}` and the receiver reads every candidate as end-of-candidates.
     pc.onicecandidate = (e) =>
-      void sendCall(id, { t: 'rtc', signal: { type: 'candidate', candidate: e.candidate } })
+      void sendCall(id, {
+        t: 'rtc',
+        signal: { type: 'candidate', candidate: e.candidate?.toJSON() ?? null },
+      })
     pc.ontrack = (e) => {
       let s = remoteStreams.get(id)
       if (!s) {
@@ -385,10 +422,13 @@ export async function joinBeamhopRoom(
     call.onMessage((msg, from) => {
       if (msg.t === 'state') {
         if (msg.active) {
-          inCall.add(from)
+          if (!inCall.has(from)) {
+            inCall.add(from)
+            emitCallPeers()
+          }
           void ensurePc(from)
         } else {
-          inCall.delete(from)
+          if (inCall.delete(from)) emitCallPeers()
           streamEv.emit({ peer: from, stream: null })
           if (!localStream) closePc(from)
         }
@@ -419,8 +459,9 @@ export async function joinBeamhopRoom(
       const msg = { id: messageId(), text, at: Date.now() }
       void chat.send(msg).catch((err) => console.warn('chat send failed', err))
       // Echo locally so the sender sees its own message immediately.
-      chatEv.emit({ ...msg, from: selfId, name: self.name })
+      addChat({ ...msg, from: selfId, name: self.name })
     },
+    messages: () => chatLog.all(),
     onChat: (cb) => chatEv.on(cb),
     sendCursor(x, y) {
       void cursor.send({ x, y }).catch(() => {})
@@ -485,6 +526,8 @@ export async function joinBeamhopRoom(
       }
     },
     onRemoteStream: (cb) => streamEv.on(({ peer, stream }) => cb(peer, stream)),
+    callPeers: () => [...inCall],
+    onCallPeers: (cb) => callPeersEv.on(cb),
     telemetry: snapshot,
     onTelemetry: (cb) => telemetryEv.on(cb),
     async leave() {
@@ -494,7 +537,7 @@ export async function joinBeamhopRoom(
       for (const off of subs) off()
       for (const id of [...pcs.keys()]) closePc(id)
       await room.leave()
-      for (const e of [peersEv, chatEv, fileEv, streamEv, telemetryEv]) e.clear()
+      for (const e of [peersEv, chatEv, fileEv, streamEv, callPeersEv, telemetryEv]) e.clear()
     },
   }
   return demo

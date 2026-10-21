@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { usePeers, useTelemetry } from '../hooks'
+import { useCallPeers, usePeers, useTelemetry } from '../hooks'
 import type { DemoRoom, Hex } from '../p2p'
 
 function Video({ stream, muted, label }: { stream: MediaStream; muted?: boolean; label: string }) {
@@ -15,8 +15,18 @@ function Video({ stream, muted, label }: { stream: MediaStream; muted?: boolean;
   )
 }
 
-export function Call({ room }: { room: DemoRoom }) {
+export function Call({
+  room,
+  joinSignal = 0,
+  onActiveChange,
+}: {
+  room: DemoRoom
+  /** Starts the call when it changes (the app's "Join call" banner). */
+  joinSignal?: number
+  onActiveChange?: (active: boolean) => void
+}) {
   const peers = usePeers(room)
+  const callPeers = useCallPeers(room)
   const telemetry = useTelemetry(room)
   const [local, setLocal] = useState<MediaStream | null>(null)
   const [remote, setRemote] = useState<Record<Hex, MediaStream>>({})
@@ -48,6 +58,11 @@ export function Call({ room }: { room: DemoRoom }) {
     [room],
   )
 
+  useEffect(() => onActiveChange?.(!!local), [local])
+  useEffect(() => {
+    if (joinSignal && !local) void start()
+  }, [joinSignal])
+
   async function cameras(): Promise<MediaDeviceInfo[]> {
     const all = await navigator.mediaDevices.enumerateDevices()
     return all.filter((d) => d.kind === 'videoinput')
@@ -61,6 +76,7 @@ export function Call({ room }: { room: DemoRoom }) {
   }
 
   async function start() {
+    if (camStream.current) return
     setError(null)
     try {
       const s = await getCamera()
@@ -144,7 +160,7 @@ export function Call({ room }: { room: DemoRoom }) {
       <div class="row">
         {!local ? (
           <button type="button" class="primary" onClick={start}>
-            Start call
+            {callPeers.length ? 'Join call' : 'Start call'}
           </button>
         ) : (
           <>
@@ -173,13 +189,28 @@ export function Call({ room }: { room: DemoRoom }) {
       )}
       <div class="tiles">
         {local && <Video stream={local} muted label={`you${sharing ? ' (screen)' : ''}`} />}
-        {Object.entries(remote).map(([id, s]) => (
-          <Video key={id} stream={s} label={`${nameOf(id)} · ${pathOf(id)}`} />
-        ))}
+        {/* Remote media only plays once we joined, so being in the room isn't eavesdropping. */}
+        {local &&
+          Object.entries(remote)
+            .filter(([id]) => callPeers.includes(id))
+            .map(([id, s]) => (
+              <Video key={id} stream={s} label={`${nameOf(id)} · ${pathOf(id)}`} />
+            ))}
       </div>
-      {local && Object.keys(remote).length === 0 && (
-        <p class="muted small">Waiting for others to join the call…</p>
-      )}
+      {(() => {
+        const connecting = callPeers.filter((id) => !remote[id])
+        if (connecting.length) {
+          return (
+            <p class="muted small">
+              {connecting.map(nameOf).join(', ')} {local ? 'connecting…' : 'in the call'}
+            </p>
+          )
+        }
+        if (local && Object.keys(remote).length === 0) {
+          return <p class="muted small">Waiting for others to join the call…</p>
+        }
+        return null
+      })()}
     </div>
   )
 }

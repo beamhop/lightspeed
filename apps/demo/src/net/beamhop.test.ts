@@ -116,6 +116,46 @@ describe('beamhop DemoRoom over the real library (memory transports)', () => {
     expect(got).toEqual(data)
   })
 
+  test('a late joiner receives the chat history', async () => {
+    const sig = createSignalingHub({ latencyMs: 2 })
+    const net = createMemoryHub({ seed: 11, defaults: { latencyMs: 2 } })
+    const join = async (name: string) => {
+      const r = await joinBeamhopRoom(cfg(name, 'demo-history'), {
+        signaling: memorySignaling(sig),
+        transports: [memoryTransport(net)],
+        identity: anonymous(),
+        tickMs: 50,
+      })
+      rooms.push(r)
+      return r
+    }
+    const a = await join('ada')
+    const b = await join('bob')
+    await until(() => a.peers().length === 2 && b.peers().length === 2)
+    a.sendChat('first')
+    await until(() => b.messages().length === 1)
+    b.sendChat('second')
+    await until(() => a.messages().length === 2)
+    const c = await join('cy')
+    await until(() => c.messages().length === 2)
+    await new Promise((r) => setTimeout(r, 100))
+    expect(c.messages().map((m) => [m.text, m.name, m.from])).toEqual([
+      ['first', 'ada', a.self.id],
+      ['second', 'bob', b.self.id],
+    ])
+  })
+
+  test('starting a call is announced to the other peers', async () => {
+    const { a, b } = await pair()
+    const seen: string[][] = []
+    b.onCallPeers((ids) => seen.push(ids))
+    await a.startCall({} as MediaStream)
+    await until(() => b.callPeers().includes(a.self.id))
+    expect(seen.at(-1)).toEqual([a.self.id])
+    a.stopCall()
+    await until(() => b.callPeers().length === 0)
+  })
+
   test('leave is reported to the other side', async () => {
     const { a, b } = await pair()
     await b.leave()

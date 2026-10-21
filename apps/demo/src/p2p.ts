@@ -81,6 +81,9 @@ export interface DemoRoom {
   peers(): DemoPeer[]
   onPeers(cb: (peers: DemoPeer[]) => void): Unsubscribe
   sendChat(text: string): void
+  /** Chat history, oldest first: own messages, live ones and history synced from peers on join. */
+  messages(): ChatMessage[]
+  /** Fires for every message not seen before (live or synced). */
   onChat(cb: (msg: ChatMessage) => void): Unsubscribe
   /** Unreliable/unordered: latest position wins, drops are fine. */
   sendCursor(x: number, y: number): void
@@ -93,6 +96,9 @@ export interface DemoRoom {
   replaceCallStream(stream: MediaStream): Promise<void>
   stopCall(): void
   onRemoteStream(cb: (peer: Hex, stream: MediaStream | null) => void): Unsubscribe
+  /** Remote peers currently in the call (whether or not we joined it). */
+  callPeers(): Hex[]
+  onCallPeers(cb: (peers: Hex[]) => void): Unsubscribe
   telemetry(): TelemetrySnapshot
   onTelemetry(cb: (t: TelemetrySnapshot) => void): Unsubscribe
   leave(): Promise<void>

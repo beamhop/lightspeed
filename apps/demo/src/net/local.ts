@@ -14,7 +14,7 @@ import type {
   TelemetrySnapshot,
   Unsubscribe,
 } from '../p2p'
-import { Emitter, messageId, pushCapped } from './emitter'
+import { ChatLog, Emitter, messageId, pushCapped } from './emitter'
 import { describeCandidatePath, selectedCandidateType } from './rtc'
 
 export const LOCAL_CHUNK_SIZE = 16 * 1024
@@ -44,6 +44,7 @@ export type LocalMessage =
   | { t: 'beat'; from: Hex }
   | { t: 'bye'; from: Hex }
   | { t: 'chat'; from: Hex; id: string; text: string; at: number }
+  | { t: 'history'; from: Hex; to: Hex; messages: ChatMessage[] }
   | { t: 'cursor'; from: Hex; x: number; y: number }
   | { t: 'ping'; from: Hex; to: Hex; sentAt: number }
   | { t: 'pong'; from: Hex; to: Hex; sentAt: number }
@@ -110,6 +111,8 @@ export function joinLocalRoom(cfg: DemoConfig, opts: LocalRoomOptions = {}): Dem
   const fileEv = new Emitter<FileProgress>()
   const streamEv = new Emitter<{ peer: Hex; stream: MediaStream | null }>()
   const telemetryEv = new Emitter<TelemetrySnapshot>()
+  const callPeersEv = new Emitter<Hex[]>()
+  const chatLog = new ChatLog()
   const incoming = new Map<string, Incoming>()
   const ackWaiters = new Map<string, (from: Hex, received: number) => void>()
   const asked = new Set<Hex>()
@@ -128,7 +131,7 @@ export function joinLocalRoom(cfg: DemoConfig, opts: LocalRoomOptions = {}): Dem
   }
 
   function channelOf(msg: LocalMessage): string {
-    if (msg.t === 'chat') return 'chat'
+    if (msg.t === 'chat' || msg.t === 'history') return 'chat'
     if (msg.t === 'cursor') return 'cursor'
     if (msg.t.startsWith('file')) return 'file'
     if (msg.t === 'ping' || msg.t === 'pong') return 'ping'
@@ -158,6 +161,17 @@ export function joinLocalRoom(cfg: DemoConfig, opts: LocalRoomOptions = {}): Dem
     peersEv.emit(peerList())
   }
 
+  const callPeers = () => [...remotes].filter(([, r]) => r.inCall).map(([id]) => id)
+  function setInCall(r: RemoteState, inCall: boolean) {
+    if (r.inCall === inCall) return
+    r.inCall = inCall
+    callPeersEv.emit(callPeers())
+  }
+
+  function addChat(m: ChatMessage) {
+    if (chatLog.add(m)) chatEv.emit(m)
+  }
+
   function snapshot(): TelemetrySnapshot {
     const peers: Record<Hex, PeerTelemetry> = {}
     for (const [id, r] of remotes) peers[id] = structuredClone(r.telemetry)
@@ -174,11 +188,14 @@ export function joinLocalRoom(cfg: DemoConfig, opts: LocalRoomOptions = {}): Dem
       r = {
         peer: { id, name, color: colorFor(id), path: 'local', state: 'connected' },
         lastSeen: Date.now(),
-        inCall: !!inCall,
+        inCall: false,
         telemetry: { path: 'local', state: 'connected', bytes: {} },
       }
       remotes.set(id, r)
       emitPeers()
+      // Catch the newcomer up on chat it missed.
+      const messages = chatLog.all()
+      if (messages.length) post({ t: 'history', from: selfId, to: id, messages })
       if (localStream) {
         void ensurePc(id)
       }
@@ -187,7 +204,7 @@ export function joinLocalRoom(cfg: DemoConfig, opts: LocalRoomOptions = {}): Dem
       emitPeers()
     }
     r.lastSeen = Date.now()
-    if (inCall !== undefined) r.inCall = inCall
+    if (inCall !== undefined) setInCall(r, inCall)
     return r
   }
 
@@ -195,6 +212,7 @@ export function joinLocalRoom(cfg: DemoConfig, opts: LocalRoomOptions = {}): Dem
     const r = remotes.get(id)
     if (!r) return
     remotes.delete(id)
+    if (r.inCall) callPeersEv.emit(callPeers())
     closePc(id)
     ackWaiters.forEach((cb) => {
       cb(id, Number.POSITIVE_INFINITY)
@@ -243,9 +261,12 @@ export function joinLocalRoom(cfg: DemoConfig, opts: LocalRoomOptions = {}): Dem
         break
       case 'chat': {
         const name = remotes.get(msg.from)?.peer.name ?? msg.from.slice(0, 8)
-        chatEv.emit({ id: msg.id, from: msg.from, name, text: msg.text, at: msg.at })
+        addChat({ id: msg.id, from: msg.from, name, text: msg.text, at: msg.at })
         break
       }
+      case 'history':
+        for (const m of msg.messages) addChat(m)
+        break
       case 'cursor':
         cursorEv.emit({ from: msg.from, x: msg.x, y: msg.y })
         break
@@ -330,7 +351,7 @@ export function joinLocalRoom(cfg: DemoConfig, opts: LocalRoomOptions = {}): Dem
         break
       case 'call': {
         const rc = remotes.get(msg.from)
-        if (rc) rc.inCall = msg.active
+        if (rc) setInCall(rc, msg.active)
         if (msg.active) void ensurePc(msg.from)
         else {
           streamEv.emit({ peer: msg.from, stream: null })
@@ -383,7 +404,8 @@ export function joinLocalRoom(cfg: DemoConfig, opts: LocalRoomOptions = {}): Dem
         t: 'rtc',
         from: selfId,
         to: id,
-        signal: { type: 'candidate', candidate: e.candidate },
+        // Plain init dict: RTCIceCandidate itself can't be structured-cloned.
+        signal: { type: 'candidate', candidate: e.candidate?.toJSON() ?? null },
       })
     pc.ontrack = (e) => {
       let s = remoteStreams.get(id)
@@ -464,8 +486,9 @@ export function joinLocalRoom(cfg: DemoConfig, opts: LocalRoomOptions = {}): Dem
         at: Date.now(),
       }
       post({ t: 'chat', from: selfId, id: msg.id, text, at: msg.at })
-      chatEv.emit(msg)
+      addChat(msg)
     },
+    messages: () => chatLog.all(),
     onChat: (cb) => chatEv.on(cb),
     sendCursor(x, y) {
       post({ t: 'cursor', from: selfId, x, y })
@@ -541,6 +564,8 @@ export function joinLocalRoom(cfg: DemoConfig, opts: LocalRoomOptions = {}): Dem
       }
     },
     onRemoteStream: (cb) => streamEv.on(({ peer, stream }) => cb(peer, stream)),
+    callPeers,
+    onCallPeers: (cb) => callPeersEv.on(cb),
     telemetry: snapshot,
     onTelemetry: (cb) => telemetryEv.on(cb),
     async leave() {
@@ -552,7 +577,9 @@ export function joinLocalRoom(cfg: DemoConfig, opts: LocalRoomOptions = {}): Dem
       for (const id of [...pcs.keys()]) closePc(id)
       bus.onmessage = null
       bus.close()
-      for (const e of [peersEv, chatEv, cursorEv, fileEv, streamEv, telemetryEv]) e.clear()
+      for (const e of [peersEv, chatEv, cursorEv, fileEv, streamEv, callPeersEv, telemetryEv]) {
+        e.clear()
+      }
     },
   }
   return room
