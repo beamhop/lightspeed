@@ -6,93 +6,118 @@ sidebar:
 ---
 
 :::caution[0.x, subject to change]
-Run `beamhop-relay config --print-defaults` for the authoritative list for your version.
+The authoritative list for your version is `RelayConfig` in `packages/relay/src/config.ts`; the
+reference file below shows every key with its default (except where an example value is noted).
+Unknown keys are ignored.
 :::
 
 Configuration comes from three places, later ones winning:
 
-1. `beamhop-relay.toml` (path from `--config`, default `/etc/beamhop/beamhop-relay.toml`),
-2. environment variables `BEAMHOP_<SECTION>_<KEY>` (for example `BEAMHOP_TURN_EXTERNAL_IP`),
-3. settings edited in the admin UI, stored in `admin.db` (policies, apps, NIP-11, plans).
+1. `beamhop-relay.toml` (path from `--config`, then `$BEAMHOP_CONFIG`, then `./beamhop-relay.toml`;
+   without a file the built-in defaults are used),
+2. settings edited in the admin UI, stored in `admin.db` as overrides of the file,
+3. environment variables, which always win and lock that key against admin edits: `BEAMHOP_<KEY>`
+   for top-level keys (`BEAMHOP_DATA_DIR`) and `BEAMHOP_<SECTION>_<KEY>` for section keys (for
+   example `BEAMHOP_HTTP_PORT`, `BEAMHOP_TURN_EXTERNAL_IP`).
 
-Listener and TLS settings require a restart; everything stored in `admin.db` is hot-reloaded.
+Listener, port and TLS path changes need a restart; everything else (log level, metrics, backups,
+Blossom and data relay limits, rate limits, public URL) applies immediately when saved in the admin
+UI. Certificate files themselves are reloaded automatically when they change on disk.
 
 ## Reference file
 
 ```toml title="beamhop-relay.toml"
-[server]
-public_url = "https://relay.example.com"   # used for NIP-11, NIP-42 relay tag, links
-listen = "0.0.0.0:443"                     # HTTPS + WSS; plain HTTP if [tls] is absent
-data_dir = "/data"                         # nostr.db, admin.db, blobs/, backups/
+data_dir = "./data"                         # nostr.db, admin.db, blobs/ and backups/
+public_url = ""                             # e.g. "https://relay.example.com"; empty = from Host
 
-[tls]
-cert = "/etc/beamhop/tls/fullchain.pem"    # reloaded automatically when the file changes
-key = "/etc/beamhop/tls/privkey.pem"
-
-[nostr]
-name = "Example relay"
-description = "Nostr relay and P2P signaling for example.com"
-contact = "mailto:ops@example.com"
-pubkey = ""                                 # operator pubkey for NIP-11
-max_event_bytes = 65536
-max_subscriptions_per_client = 32
-min_pow = 0                                 # NIP-13 difficulty for the public relay
+[http]
+host = "0.0.0.0"
+port = 443                                  # HTTPS + WSS: Nostr, data relay, Blossom, admin, /pay
+tls_cert = ""                               # PEM paths; both empty = plain HTTP behind a proxy
+tls_key = ""
+trust_proxy = false                         # honour X-Forwarded-For (only behind Caddy/nginx)
+rate_limit_per_minute = 1200                # requests per IP across HTTP routes (0 = unlimited)
 
 [turn]
 enabled = true
-realm = "relay.example.com"
+realm = "beamhop"
+host = "0.0.0.0"
+public_host = ""                            # hostname in iceServers; defaults to public_url host
+external_ip = ""                            # public IP if the host sits behind 1:1 NAT
 udp_port = 3478
 tcp_port = 3478
-tls_port = 5349                             # turns:, also offered on 443 when no proxy owns it
-external_ip = ""                            # public IPv4 if the host sits behind 1:1 NAT
-external_ip6 = ""
-relay_ports = [50000, 50100]                # UDP range for allocations
-credential_ttl = 3600
+tls_port = 5349                             # turns:; 0 disables
+tls_cert = ""                               # empty = reuse http.tls_cert / http.tls_key
+tls_key = ""
+relay_port_min = 50000                      # UDP range for allocations
+relay_port_max = 50100
+credential_ttl = 86400                      # lifetime of minted TURN REST credentials, seconds
 
-[data_relay]
-enabled = true
-max_message_bytes = 65632
+[nostr]                                     # NIP-11 defaults; the admin UI can edit the document
+name = "Beamhop relay"
+description = "Nostr relay by Beamhop"
+contact = ""
+pubkey = ""                                 # operator pubkey
+icon = ""
+
+[data]                                      # data relay at /a/<appId>/data
+max_frame_bytes = 262144
+messages_per_second = 2000                  # per connection (0 = unlimited)
 
 [blossom]
-enabled = true
-max_blob_mb = 100
-allowed_mime = ["image/*", "video/*", "audio/*", "application/pdf"]
+max_upload_bytes = 104857600
+allowed_mime = []                           # empty = any; entries may end with /*
+default_quota_bytes = 5368709120            # new apps and the public scope (0 = unlimited)
+per_pubkey_quota_bytes = 524288000          # per pubkey within a scope (0 = unlimited)
+require_auth_for_list = false               # require kind 24242 auth for GET /list
 
 [payments]
-enabled = false
-nwc = ""                                    # nostr+walletconnect://… (keep in env, not in git)
-
-[admin]
-pubkeys = []                                # hex or npub; admins allowed to log in with Nostr
-session_ttl_hours = 24
+nwc_url = ""                                # nostr+walletconnect://… (keep in env, not in git)
+required = false                            # writes to the public relay need a paid plan
+invoice_expiry_sec = 3600
 
 [backups]
 enabled = true
-time = "03:30"                              # local time, daily VACUUM INTO
+hour = 3                                    # UTC hour (0-23) for the nightly VACUUM INTO
 retention_days = 14
-s3_url = ""                                 # optional s3://bucket/prefix (S3-compatible)
-
-[metrics]
-enabled = true                              # Prometheus at /metrics
-token = ""                                  # optional bearer token for /metrics
+dir = ""                                    # empty = <data_dir>/backups
 
 [log]
-level = "info"                              # debug | info | warn | error
-format = "json"                             # json | pretty
+level = "info"                              # debug | info | warn | error; always JSON lines
+
+[alerts]
+disk_percent = 80
+error_rate = 0.05                           # 5xx share over 5 minutes
+cert_days = 14
+
+[admin]
+dist_dir = ""                               # empty = auto-detect the bundled admin SPA
+session_ttl_hours = 168
+allowed_origins = []                        # extra origins accepted on admin writes
+
+[metrics]
+enabled = true                              # Prometheus at /metrics; false = 404
+token = ""                                  # optional bearer token for /metrics
 ```
+
+Backups are local snapshots in `backups.dir`; copy that directory off the host (rsync, restic,
+volume snapshots) yourself. Logs are always JSON lines on stdout.
 
 ## Secrets
 
 Put secrets in the environment (or a systemd `EnvironmentFile` with mode 0600), not in the TOML:
-`BEAMHOP_PAYMENTS_NWC`, `BEAMHOP_BACKUPS_S3_SECRET_KEY`, `BEAMHOP_METRICS_TOKEN`. App TURN secrets
+`BEAMHOP_PAYMENTS_NWC_URL` and `BEAMHOP_METRICS_TOKEN`. The admin settings API redacts them and
+refuses to change them; the NWC connection can also be set from the admin UI's Payments page. App TURN secrets
 and API keys are generated by the relay and stored in `admin.db`; rotate them from the admin UI.
 
 ## What lives where
 
 | Setting | Source |
 |---|---|
-| Listeners, ports, TLS paths, data dir | TOML / env (restart) |
-| NIP-11 document | TOML defaults, then admin UI (`PUT /api/admin/nip11`) |
+| Data dir | TOML / env only (restart) |
+| Listeners, ports, TLS paths | TOML / env, or admin UI Settings (restart) |
+| Log level, metrics on/off, backups | TOML / env, or admin UI Settings (immediate) |
+| NIP-11 document | `[nostr]` defaults, then admin UI (`PUT /api/admin/nip11`) |
 | Global and per-app policies | Admin UI (`/api/admin/policies/:realm`) |
 | Apps, TURN secrets, API keys, quotas | Admin UI |
-| Admin pubkeys | TOML seeds the list; the admin UI manages it after bootstrap |
+| Admins | Bootstrap token on first start, then the admin UI |
