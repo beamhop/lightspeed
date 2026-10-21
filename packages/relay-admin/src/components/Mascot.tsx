@@ -1,6 +1,5 @@
-/** @jsxImportSource preact */
 import type { MascotState } from '@beamhop/ui'
-import type { ComponentChildren } from 'preact'
+import type { ReactNode } from 'react'
 
 export type { MascotState }
 
@@ -32,13 +31,13 @@ export function Mascot({
       <title>{label}</title>
       {state === 'spinner' && (
         <g style={{ transformOrigin: '60px 64px', animation: 'bh-spin 1.1s linear infinite' }}>
-          <circle cx="60" cy="64" r="54" fill="none" stroke="var(--bh-border)" stroke-width="5" />
+          <circle cx="60" cy="64" r="54" fill="none" stroke="var(--bh-border)" strokeWidth="5" />
           <path
             d="M60 10 A54 54 0 0 1 114 64"
             fill="none"
             stroke="var(--bh-teal)"
-            stroke-width="5"
-            stroke-linecap="round"
+            strokeWidth="5"
+            strokeLinecap="round"
           />
         </g>
       )}
@@ -93,14 +92,14 @@ export function Mascot({
         {state === 'secret' && (
           <g>
             {/* paw over mouth + lock */}
-            <ellipse cx="60" cy="86" rx="9" ry="6" fill={FUR} stroke={LINE} stroke-width="1.5" />
+            <ellipse cx="60" cy="86" rx="9" ry="6" fill={FUR} stroke={LINE} strokeWidth="1.5" />
             <g transform="translate(86 78)">
               <rect x="0" y="8" width="20" height="16" rx="3" fill="var(--bh-violet)" />
               <path
                 d="M4 8 V4 a6 6 0 0 1 12 0 V8"
                 fill="none"
                 stroke="var(--bh-violet)"
-                stroke-width="3"
+                strokeWidth="3"
               />
               <circle cx="10" cy="16" r="2.4" fill={LINE} />
             </g>
@@ -115,7 +114,7 @@ function Eyes({ state }: { state: MascotState }) {
   switch (state) {
     case 'smile':
       return (
-        <g fill="none" stroke={LINE} stroke-width="3" stroke-linecap="round">
+        <g fill="none" stroke={LINE} strokeWidth="3" strokeLinecap="round">
           <path d="M44 64 Q49 57 54 64" />
           <path d="M66 64 Q71 57 76 64" />
         </g>
@@ -123,15 +122,15 @@ function Eyes({ state }: { state: MascotState }) {
     case 'angry':
       return (
         <g>
-          <path d="M42 54 L54 59" stroke={LINE} stroke-width="3" stroke-linecap="round" />
-          <path d="M78 54 L66 59" stroke={LINE} stroke-width="3" stroke-linecap="round" />
+          <path d="M42 54 L54 59" stroke={LINE} strokeWidth="3" strokeLinecap="round" />
+          <path d="M78 54 L66 59" stroke={LINE} strokeWidth="3" strokeLinecap="round" />
           <circle cx="49" cy="64" r="3" fill={LINE} />
           <circle cx="71" cy="64" r="3" fill={LINE} />
         </g>
       )
     case 'secret':
       return (
-        <g fill="none" stroke={LINE} stroke-width="3" stroke-linecap="round">
+        <g fill="none" stroke={LINE} strokeWidth="3" strokeLinecap="round">
           <path d="M44 63 L54 63" />
           <path d="M66 63 L76 63" />
         </g>
@@ -157,8 +156,8 @@ function Mouth({ state }: { state: MascotState }) {
         d="M53 85 Q60 79 67 85"
         fill="none"
         stroke={LINE}
-        stroke-width="2.5"
-        stroke-linecap="round"
+        strokeWidth="2.5"
+        strokeLinecap="round"
       />
     )
   return (
@@ -166,8 +165,8 @@ function Mouth({ state }: { state: MascotState }) {
       d="M54 80 Q57 83 60 80 Q63 83 66 80"
       fill="none"
       stroke={LINE}
-      stroke-width="2"
-      stroke-linecap="round"
+      strokeWidth="2"
+      strokeLinecap="round"
     />
   )
 }
@@ -181,17 +180,17 @@ export function MascotMessage({
 }: {
   state: MascotState
   title: string
-  children?: ComponentChildren
+  children?: ReactNode
   compact?: boolean
 }) {
   return (
     <div
-      class={`flex flex-col items-center justify-center text-center gap-3 ${compact ? 'py-6' : 'py-12'}`}
+      className={`flex flex-col items-center justify-center text-center gap-3 ${compact ? 'py-6' : 'py-12'}`}
       role={state === 'angry' ? 'alert' : 'status'}
     >
       <Mascot state={state} size={compact ? 64 : 96} />
-      <div class="font-semibold text-ink">{title}</div>
-      {children && <div class="text-sm text-muted max-w-sm">{children}</div>}
+      <div className="font-semibold text-foreground">{title}</div>
+      {children && <div className="text-sm text-muted-foreground max-w-sm">{children}</div>}
     </div>
   )
 }

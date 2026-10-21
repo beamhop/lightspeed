@@ -1,42 +1,11 @@
-/** @jsxImportSource preact */
-import { useEffect, useState } from 'preact/hooks'
+import { useEffect, useState } from 'react'
 import { Async, useResource } from '../components/Async'
 import { Button, Card, Field, Input, PageHeader, Select, Toggle } from '../components/ui'
 import { api, isMock, stats } from '../ctx'
 import { PAGE_HELP } from '../help'
+import { applyTheme, diffSettings, storedTheme, THEME_KEY } from '../settings'
 import { performWrite, session, toast } from '../store'
 import type { Settings as SettingsT } from '../types'
-
-const THEME_KEY = 'bh-admin-theme'
-
-export function applyTheme(theme: 'dark' | 'light'): void {
-  if (typeof document === 'undefined') return
-  document.documentElement.classList.toggle('light', theme === 'light')
-  document.documentElement.classList.toggle('dark', theme === 'dark')
-}
-
-export function storedTheme(): 'dark' | 'light' {
-  try {
-    return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark'
-  } catch {
-    return 'dark'
-  }
-}
-
-/** Field-by-field summary of a settings change for the confirmation dialog. */
-export function diffSettings(a: SettingsT, b: SettingsT, prefix = ''): string[] {
-  const out: string[] = []
-  for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
-    const x = (a as unknown as Record<string, unknown>)[k]
-    const y = (b as unknown as Record<string, unknown>)[k]
-    const path = prefix ? `${prefix}.${k}` : k
-    if (x && y && typeof x === 'object' && typeof y === 'object' && !Array.isArray(x))
-      out.push(...diffSettings(x as SettingsT, y as SettingsT, path))
-    else if (JSON.stringify(x) !== JSON.stringify(y))
-      out.push(`${path}: ${JSON.stringify(x ?? null)} → ${JSON.stringify(y ?? null)}`)
-  }
-  return out
-}
 
 export function Settings() {
   const res = useResource(() => api.settings.get(), [])
@@ -63,7 +32,6 @@ export function Settings() {
       />
       <Card
         title="Appearance"
-        class="mb-4"
         description="How this admin UI looks for you. It does not affect the relay or other admins."
       >
         <Toggle
@@ -78,7 +46,7 @@ export function Settings() {
             } catch {}
           }}
         />
-        <p class="text-xs text-muted mt-1">
+        <p className="text-xs text-muted-foreground mt-1">
           Stored in this browser only.{isMock ? ' Mock mode: changes live in memory.' : ''}
         </p>
       </Card>
@@ -97,13 +65,13 @@ function SettingsForm({ saved, onSaved }: { saved: SettingsT; onSaved: (s: Setti
   const restart = changes.some((c) => c.startsWith('listeners') || c.startsWith('tls'))
 
   return (
-    <div class="grid lg:grid-cols-2 gap-4">
+    <div className="grid gap-6 lg:grid-cols-2">
       <Card
         title="Listeners and ports"
         description="The network ports the relay listens on. Your firewall and any load balancer must forward these. Port changes apply after a restart; the public URL applies immediately."
       >
-        <div class="grid grid-cols-2 gap-3">
-          <div class="col-span-2">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="col-span-2">
             <Field
               label="Public URL"
               hint="e.g. https://relay.example.com"
@@ -156,7 +124,7 @@ function SettingsForm({ saved, onSaved }: { saved: SettingsT; onSaved: (s: Setti
             label="Relay port range"
             help="UDP ports TURN opens for relayed traffic, one per allocation. The range limits how many simultaneous allocations are possible and must be open in your firewall."
           >
-            <div class="flex gap-1 items-center">
+            <div className="flex gap-1 items-center">
               <Input
                 type="number"
                 value={String(s.listeners.relayPorts[0])}
@@ -167,7 +135,7 @@ function SettingsForm({ saved, onSaved }: { saved: SettingsT; onSaved: (s: Setti
                   })
                 }
               />
-              <span class="text-muted">–</span>
+              <span className="text-muted-foreground">–</span>
               <Input
                 type="number"
                 value={String(s.listeners.relayPorts[1])}
@@ -186,7 +154,7 @@ function SettingsForm({ saved, onSaved }: { saved: SettingsT; onSaved: (s: Setti
         title="TLS"
         description="The certificate that secures HTTPS, WSS and TURNS. Leave both paths empty when a reverse proxy (Caddy, nginx) terminates TLS in front of the relay. The relay reloads the files when they change, so renewals (e.g. certbot) need no restart; changing the paths does."
       >
-        <div class="space-y-3">
+        <div className="space-y-4">
           <Field
             label="Certificate path"
             help="Path on the server to a PEM certificate chain (fullchain.pem from Let’s Encrypt/certbot)."
@@ -194,7 +162,7 @@ function SettingsForm({ saved, onSaved }: { saved: SettingsT; onSaved: (s: Setti
             <Input
               value={s.tls.cert}
               onValue={(v) => setS({ ...s, tls: { ...s.tls, cert: v } })}
-              class="font-mono"
+              className="font-mono"
             />
           </Field>
           <Field
@@ -204,7 +172,7 @@ function SettingsForm({ saved, onSaved }: { saved: SettingsT; onSaved: (s: Setti
             <Input
               value={s.tls.key}
               onValue={(v) => setS({ ...s, tls: { ...s.tls, key: v } })}
-              class="font-mono"
+              className="font-mono"
             />
           </Field>
         </div>
@@ -213,7 +181,7 @@ function SettingsForm({ saved, onSaved }: { saved: SettingsT; onSaved: (s: Setti
         title="Logging and metrics"
         description="How much the relay writes to its logs, and whether it exposes numbers for monitoring tools such as Prometheus and Grafana."
       >
-        <div class="grid grid-cols-2 gap-3 items-end">
+        <div className="grid grid-cols-2 gap-3 items-end">
           <Field
             label="Log level"
             hint="Applies immediately."
@@ -243,13 +211,13 @@ function SettingsForm({ saved, onSaved }: { saved: SettingsT; onSaved: (s: Setti
             }
             help="The URL Prometheus scrapes. It is fixed by the relay. The token is a secret, so it is set in beamhop-relay.toml or BEAMHOP_METRICS_TOKEN rather than here."
           >
-            <Input value={s.metrics.path} readOnly class="font-mono opacity-70" />
+            <Input value={s.metrics.path} readOnly className="font-mono opacity-70" />
           </Field>
         </div>
-        <Button class="mt-3" size="sm" onClick={() => downloadGrafana(s.metrics.path)}>
+        <Button className="mt-3" size="sm" onClick={() => downloadGrafana(s.metrics.path)}>
           Download Grafana dashboard
         </Button>
-        <p class="text-[11px] text-muted mt-1">
+        <p className="text-[11px] text-muted-foreground mt-1">
           A ready-made dashboard JSON: in Grafana choose Dashboards → New → Import and upload it.
         </p>
       </Card>
@@ -257,7 +225,7 @@ function SettingsForm({ saved, onSaved }: { saved: SettingsT; onSaved: (s: Setti
         title="Backups"
         description="Automatic daily snapshots of the relay databases into the backup directory on this server. Copy that directory off the machine (rsync, restic, a volume snapshot) so a lost server does not take its backups with it. You can also run one by hand on Nostr → Backup."
       >
-        <div class="grid grid-cols-2 gap-3 items-end">
+        <div className="grid grid-cols-2 gap-3 items-end">
           <Toggle
             label="Nightly backups"
             help="Take a snapshot once a day at the hour below."
@@ -290,13 +258,13 @@ function SettingsForm({ saved, onSaved }: { saved: SettingsT; onSaved: (s: Setti
           </Field>
         </div>
       </Card>
-      <div class="lg:col-span-2 flex items-center justify-between gap-2 sticky bottom-20 md:bottom-2 rounded-lg bg-surface/95 backdrop-blur border border-line px-4 py-3">
-        <span class="text-xs text-muted">
+      <div className="lg:col-span-2 flex items-center justify-between gap-2 sticky bottom-20 md:bottom-2 rounded-lg bg-card/95 backdrop-blur border border-border px-4 py-3">
+        <span className="text-xs text-muted-foreground">
           {changes.length
             ? `${changes.length} unsaved change${changes.length > 1 ? 's' : ''}${restart ? ' · listener/TLS changes need a restart' : ''}`
             : 'No changes'}
         </span>
-        <div class="flex gap-2">
+        <div className="flex gap-2">
           <Button variant="ghost" disabled={!changes.length} onClick={() => setS(saved)}>
             Reset
           </Button>

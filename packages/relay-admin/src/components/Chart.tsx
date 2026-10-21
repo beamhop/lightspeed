@@ -1,5 +1,4 @@
-/** @jsxImportSource preact */
-import { useEffect, useRef } from 'preact/hooks'
+import { useEffect, useRef } from 'react'
 import uPlot from 'uplot'
 
 export interface ChartSeries {
@@ -31,7 +30,7 @@ export function Chart({
     if (!el) return
     const css = getComputedStyle(document.documentElement)
     const grid = css.getPropertyValue('--bh-border').trim() || '#2A3050'
-    const muted = css.getPropertyValue('--bh-text-muted').trim() || '#9AA0C3'
+    const muted = css.getPropertyValue('--muted-foreground-foreground').trim() || '#9AA0C3'
     const axis = {
       stroke: muted,
       grid: { stroke: grid, width: 1 },
@@ -85,5 +84,5 @@ export function Chart({
     plot.current?.setData(data as uPlot.AlignedData)
   }, [data])
 
-  return <div ref={ref} class="w-full" />
+  return <div ref={ref} className="w-full" />
 }

@@ -2,9 +2,12 @@
 
 Mobile-first admin SPA for the Beamhop relay, served by `@beamhop/relay` at `/admin`. AGPL-3.0-only.
 
-Stack: Preact 11 + `@preact/signals`, Vite 8, Tailwind v4 on the `@beamhop/ui` tokens
-(`tokens.css` mapped through `@theme inline`), uPlot charts. Dark by default (light theme toggle in
-Settings). Bottom navigation on phones (Overview, Nostr, TURN, Apps, More sheet), sidebar on desktop.
+Stack: React 19 + shadcn/ui (new-york, Radix, `src/components/ui`), Vite 8, Tailwind v4 with the
+shadcn tokens mapped onto the `@beamhop/ui` palette, uPlot charts. App state lives in
+`@preact/signals-core` signals (DOM-free, tested in Bun) read from React with `useValue`. Screens
+compose the shared blocks in `src/components/ui.tsx` (Card, DataTable, Field, ...) so spacing and
+table gutters match everywhere. Dark by default (light theme toggle in Settings). Bottom navigation
+on phones (Overview, Nostr, TURN, Apps, More sheet), sidebar on desktop.
 
 ## Commands
 

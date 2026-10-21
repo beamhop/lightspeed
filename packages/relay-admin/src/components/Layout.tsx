@@ -1,33 +1,42 @@
-/** @jsxImportSource preact */
-import type { ComponentChildren } from 'preact'
-import { useState } from 'preact/hooks'
+import {
+  Boxes,
+  Image,
+  LayoutDashboard,
+  type LucideIcon,
+  MoreHorizontal,
+  Radio,
+  Repeat,
+  Settings,
+  Users,
+  Zap,
+} from 'lucide-react'
+import { type ReactNode, useState } from 'react'
+import { useValue } from '@/lib/signals'
+import { cn } from '@/lib/utils'
 import { isMock, stats } from '../ctx'
 import { shortNpub } from '../format'
 import { currentPath, navigate } from '../router'
 import { session } from '../store'
 import { Mascot } from './Mascot'
 import { Link } from './ui'
+import { Separator } from './ui/separator'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './ui/sheet'
 
-const ICONS: Record<string, string> = {
-  overview: 'M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z',
-  nostr:
-    'M12 2a10 10 0 100 20 10 10 0 000-20zm1 14.9V19h-2v-2.1A5 5 0 017 12h2a3 3 0 106 0h2a5 5 0 01-4 4.9zM11 5h2v6h-2z',
-  turn: 'M4 12a8 8 0 0114-5.3V4h2v6h-6V8h2.7A6 6 0 106 12H4zm16 0a8 8 0 01-14 5.3V20H4v-6h6v2H7.3A6 6 0 1018 12h2z',
-  apps: 'M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z',
-  media: 'M4 5h16v14H4V5zm2 2v8l4-4 3 3 2-2 3 3V7H6zm9 1.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3z',
-  payments: 'M13 2L4 14h7l-1 8 9-12h-7l1-8z',
-  admins: 'M12 12a4 4 0 100-8 4 4 0 000 8zm0 2c-4 0-8 2-8 5v1h16v-1c0-3-4-5-8-5z',
-  settings:
-    'M19.4 13a7.6 7.6 0 000-2l2.1-1.6-2-3.4-2.5 1a7 7 0 00-1.7-1L15 3h-4l-.4 2.6a7 7 0 00-1.7 1l-2.5-1-2 3.4L6.6 11a7.6 7.6 0 000 2l-2.1 1.6 2 3.4 2.5-1a7 7 0 001.7 1L11 21h4l.4-2.6a7 7 0 001.7-1l2.5 1 2-3.4-2.2-1.6zM13 15.5a3.5 3.5 0 110-7 3.5 3.5 0 010 7z',
-  more: 'M5 10a2 2 0 100 4 2 2 0 000-4zm7 0a2 2 0 100 4 2 2 0 000-4zm7 0a2 2 0 100 4 2 2 0 000-4z',
+const ICONS: Record<string, LucideIcon> = {
+  overview: LayoutDashboard,
+  nostr: Radio,
+  turn: Repeat,
+  apps: Boxes,
+  media: Image,
+  payments: Zap,
+  admins: Users,
+  settings: Settings,
+  more: MoreHorizontal,
 }
 
-export function Icon({ name, class: cls = 'size-5' }: { name: string; class?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" class={cls} fill="currentColor" aria-hidden="true">
-      <path d={ICONS[name] ?? ''} />
-    </svg>
-  )
+export function Icon({ name, className = 'size-4' }: { name: string; className?: string }) {
+  const I = ICONS[name]
+  return I ? <I className={className} aria-hidden="true" /> : null
 }
 
 export const NAV = [
@@ -46,141 +55,164 @@ export function isActive(to: string, path: string): boolean {
 }
 
 function LiveDot() {
-  const s = stats.status.value
+  const s = useValue(stats.status)
+  const attempts = useValue(stats.attempts)
   const tone =
     s === 'open'
-      ? 'bg-ok'
+      ? 'bg-success'
       : s === 'reconnecting' || s === 'connecting'
-        ? 'bg-warn animate-pulse'
-        : 'bg-danger'
+        ? 'bg-warning animate-pulse'
+        : 'bg-destructive'
   const label =
     s === 'open'
       ? 'Live'
       : s === 'reconnecting'
-        ? `Reconnecting (${stats.attempts.value})`
+        ? `Reconnecting (${attempts})`
         : s === 'connecting'
           ? 'Connecting'
           : 'Offline'
   return (
     <span
-      class="inline-flex items-center gap-1.5 text-xs text-muted"
+      className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
       title="Stats stream"
       data-live={s}
     >
-      <span class={`size-2 rounded-full ${tone}`} />
+      <span className={cn('size-2 rounded-full', tone)} />
       {label}
     </span>
   )
 }
 
-export function Layout({ children }: { children: ComponentChildren }) {
-  const path = currentPath.value
+export function Layout({ children }: { children: ReactNode }) {
+  const path = useValue(currentPath)
+  const me = useValue(session)
   const [more, setMore] = useState(false)
-  const me = session.value
   const who = me?.pubkey ? shortNpub(me.pubkey) : (me?.username ?? '')
   const moreActive = NAV.some((n) => !('primary' in n) && isActive(n.to, path))
 
   return (
-    <div class="min-h-dvh md:flex">
+    <div className="min-h-dvh md:flex">
       {/* desktop sidebar */}
-      <aside class="hidden md:flex md:flex-col w-60 shrink-0 border-r border-line bg-surface/60 sticky top-0 h-dvh">
-        <div class="flex items-center gap-2 px-4 py-4">
-          <Mascot state="idle" size={34} />
-          <div>
-            <div class="text-sm font-semibold text-ink leading-tight">Beamhop Relay</div>
-            <div class="text-[11px] text-muted">Admin{isMock ? ' · mock' : ''}</div>
+      <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r bg-card/60 md:flex">
+        <div className="flex h-16 items-center gap-2.5 px-4">
+          <Mascot state="idle" size={32} />
+          <div className="leading-tight">
+            <div className="text-sm font-semibold">Beamhop Relay</div>
+            <div className="text-xs text-muted-foreground">Admin{isMock ? ' · mock' : ''}</div>
           </div>
         </div>
-        <nav class="flex-1 px-2 space-y-0.5" aria-label="Main">
-          {NAV.map((n) => (
-            <Link
-              key={n.to}
-              to={n.to}
-              aria-current={isActive(n.to, path) ? 'page' : undefined}
-              class={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition ${isActive(n.to, path) ? 'bg-teal/10 text-teal font-medium' : 'text-muted hover:text-ink hover:bg-raised'}`}
-            >
-              <Icon name={n.icon} />
-              {n.label}
-            </Link>
-          ))}
+        <Separator />
+        <nav className="flex flex-1 flex-col gap-1 p-2" aria-label="Main">
+          {NAV.map((n) => {
+            const active = isActive(n.to, path)
+            return (
+              <Link
+                key={n.to}
+                to={n.to}
+                aria-current={active ? 'page' : undefined}
+                className={cn(
+                  'flex h-9 items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+                  active
+                    ? 'bg-accent text-accent-foreground'
+                    : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+                )}
+              >
+                <Icon name={n.icon} className={cn('size-4', active && 'text-primary')} />
+                {n.label}
+              </Link>
+            )
+          })}
         </nav>
-        <div class="px-4 py-3 border-t border-line text-xs text-muted space-y-1">
+        <Separator />
+        <div className="space-y-1.5 px-4 py-3">
           <LiveDot />
-          <div class="truncate font-mono" title={me?.pubkey ?? me?.username}>
+          <div
+            className="truncate font-mono text-xs text-muted-foreground"
+            title={me?.pubkey ?? me?.username}
+          >
             {who}
           </div>
         </div>
       </aside>
 
-      <div class="flex-1 min-w-0 flex flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         {/* phone top bar */}
-        <header class="md:hidden sticky top-0 z-30 flex items-center justify-between px-4 h-12 bg-midnight/90 backdrop-blur border-b border-line">
-          <div class="flex items-center gap-2">
+        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-background/90 px-4 backdrop-blur md:hidden">
+          <div className="flex items-center gap-2">
             <Mascot state="idle" size={26} />
-            <span class="text-sm font-semibold">
-              Beamhop Relay{isMock ? <span class="text-muted font-normal"> · mock</span> : null}
+            <span className="text-sm font-semibold">
+              Beamhop Relay
+              {isMock ? <span className="font-normal text-muted-foreground"> · mock</span> : null}
             </span>
           </div>
           <LiveDot />
         </header>
-        <main class="flex-1 px-4 py-4 md:px-8 md:py-6 pb-24 md:pb-8 max-w-6xl w-full mx-auto">
+        <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-6 pb-24 md:px-8 md:py-8">
           {children}
         </main>
       </div>
 
       {/* phone bottom nav */}
       <nav
-        class="md:hidden fixed bottom-0 inset-x-0 z-40 bg-surface/95 backdrop-blur border-t border-line pb-safe"
+        className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t bg-card/95 backdrop-blur md:hidden"
         aria-label="Main"
       >
-        <div class="grid grid-cols-5">
+        <div className="grid grid-cols-5">
           {NAV.filter((n) => 'primary' in n).map((n) => (
             <Link
               key={n.to}
               to={n.to}
               aria-current={isActive(n.to, path) ? 'page' : undefined}
-              class={`flex flex-col items-center gap-0.5 pt-2 pb-1 text-[10px] ${isActive(n.to, path) ? 'text-teal' : 'text-muted'}`}
+              className={cn(
+                'flex flex-col items-center gap-1 pt-2 pb-1 text-[10px] font-medium',
+                isActive(n.to, path) ? 'text-primary' : 'text-muted-foreground',
+              )}
             >
-              <Icon name={n.icon} />
+              <Icon name={n.icon} className="size-5" />
               {'short' in n ? n.short : n.label}
             </Link>
           ))}
           <button
             type="button"
             onClick={() => setMore(true)}
-            class={`flex flex-col items-center gap-0.5 pt-2 pb-1 text-[10px] ${moreActive ? 'text-teal' : 'text-muted'}`}
+            className={cn(
+              'flex flex-col items-center gap-1 pt-2 pb-1 text-[10px] font-medium',
+              moreActive ? 'text-primary' : 'text-muted-foreground',
+            )}
             aria-haspopup="dialog"
           >
-            <Icon name="more" />
+            <Icon name="more" className="size-5" />
             More
           </button>
         </div>
       </nav>
-      {more && (
-        <div class="md:hidden fixed inset-0 z-50" role="dialog" aria-label="More sections">
-          <div class="absolute inset-0 bg-black/60" onClick={() => setMore(false)} />
-          <div class="absolute bottom-0 inset-x-0 rounded-t-2xl bg-surface border-t border-line p-4 pb-safe">
-            <div class="mx-auto mb-3 h-1 w-10 rounded-full bg-line" />
-            <div class="grid grid-cols-2 gap-2">
-              {NAV.filter((n) => !('primary' in n)).map((n) => (
-                <button
-                  key={n.to}
-                  type="button"
-                  onClick={() => {
-                    setMore(false)
-                    navigate(n.to)
-                  }}
-                  class={`flex items-center gap-3 rounded-md border border-line px-3 py-3 text-sm ${isActive(n.to, path) ? 'text-teal border-teal/40' : 'text-ink'}`}
-                >
-                  <Icon name={n.icon} />
-                  {n.label}
-                </button>
-              ))}
-            </div>
-            <div class="mt-3 text-xs text-muted truncate font-mono">{who}</div>
+      <Sheet open={more} onOpenChange={setMore}>
+        <SheetContent side="bottom" className="pb-safe rounded-t-xl md:hidden">
+          <SheetHeader>
+            <SheetTitle>More sections</SheetTitle>
+            <SheetDescription className="truncate font-mono text-xs">{who}</SheetDescription>
+          </SheetHeader>
+          <div className="grid grid-cols-2 gap-2 px-4 pb-4">
+            {NAV.filter((n) => !('primary' in n)).map((n) => (
+              <button
+                key={n.to}
+                type="button"
+                onClick={() => {
+                  setMore(false)
+                  navigate(n.to)
+                }}
+                className={cn(
+                  'flex h-11 items-center gap-3 rounded-md border px-3 text-sm font-medium',
+                  isActive(n.to, path) ? 'border-primary/40 text-primary' : 'text-foreground',
+                )}
+              >
+                <Icon name={n.icon} />
+                {n.label}
+              </button>
+            ))}
           </div>
-        </div>
-      )}
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

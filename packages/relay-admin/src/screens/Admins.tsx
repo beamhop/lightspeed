@@ -1,5 +1,5 @@
-/** @jsxImportSource preact */
-import { useState } from 'preact/hooks'
+import { useState } from 'react'
+import { useValue } from '@/lib/signals'
 import { Async, useResource } from '../components/Async'
 import {
   Badge,
@@ -28,7 +28,7 @@ export function adminName(a: Pick<Admin, 'pubkey' | 'username' | 'id'>): string 
 }
 
 export function Admins() {
-  const tab = (currentQuery.value.get('tab') as Tab) || 'admins'
+  const tab = (useValue(currentQuery).get('tab') as Tab) || 'admins'
   return (
     <>
       <PageHeader
@@ -60,7 +60,7 @@ export function Admins() {
           },
         ]}
       />
-      <div class="pt-4">
+      <div className="flex flex-col gap-6">
         {tab === 'admins' && <AdminList />}
         {tab === 'sessions' && <Sessions />}
         {tab === 'audit' && <Audit />}
@@ -72,7 +72,7 @@ export function Admins() {
 function AdminList() {
   const res = useResource(() => api.admins.list(), [])
   const [open, setOpen] = useState(false)
-  const me = session.value
+  const me = useValue(session)
 
   const remove = async (a: Admin) => {
     const r = await performWrite({
@@ -114,7 +114,7 @@ function AdminList() {
   }
 
   return (
-    <div class="space-y-4">
+    <div className="flex flex-col gap-6">
       <Card
         title="Admins"
         actions={
@@ -133,7 +133,7 @@ function AdminList() {
                   key: 'who',
                   label: 'Admin',
                   render: (a) => (
-                    <span class="inline-flex items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1.5">
                       <Mono>{adminName(a)}</Mono>
                       {me?.id === a.id && <Badge tone="teal">you</Badge>}
                     </span>
@@ -184,7 +184,7 @@ function AdminList() {
         title="Bootstrap and recovery"
         description="How the first owner is created and how to get back in if every admin loses access."
       >
-        <ul class="text-sm text-muted space-y-1.5 list-disc pl-5">
+        <ul className="text-sm text-muted-foreground space-y-1.5 list-disc pl-5">
           <li>
             The bootstrap token is printed once on first start and is void after the first admin
             claims it.
@@ -275,8 +275,8 @@ function InviteModal({
         </>
       }
     >
-      <div class="space-y-3">
-        <div class="flex gap-2">
+      <div className="space-y-4">
+        <div className="flex gap-2">
           <Button
             size="sm"
             variant={mode === 'nostr' ? 'primary' : 'secondary'}
@@ -352,7 +352,7 @@ function Sessions() {
                 key: 'admin',
                 label: 'Admin',
                 render: (s) => (
-                  <span class="inline-flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1.5">
                     <Mono>{nameOf(s.adminId)}</Mono>
                     {s.current && <Badge tone="teal">this device</Badge>}
                   </span>
@@ -429,7 +429,7 @@ function Audit() {
       title="Audit log"
       actions={
         <form
-          class="flex gap-2"
+          className="flex gap-2"
           onSubmit={(e) => {
             e.preventDefault()
             setApplied(actor.trim())
@@ -439,7 +439,7 @@ function Audit() {
             value={actor}
             onValue={setActor}
             placeholder="Filter by actor"
-            class="!min-h-8 !py-1 w-44"
+            className="h-8 w-44"
             type="search"
           />
         </form>
@@ -450,23 +450,25 @@ function Audit() {
           const rows = applied ? list.filter((e) => e.actor.includes(applied)) : list
           return (
             <>
-              <ol class="divide-y divide-line/60">
+              <ol className="divide-y divide-border/60">
                 {rows.map((e) => (
                   <li
                     key={e.id}
-                    class="py-2 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 text-sm"
+                    className="py-2 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 text-sm"
                   >
-                    <span class="text-xs text-muted w-36 shrink-0">{formatDate(e.ts)}</span>
+                    <span className="text-xs text-muted-foreground w-36 shrink-0">
+                      {formatDate(e.ts)}
+                    </span>
                     <Badge tone="violet">{e.action}</Badge>
-                    <Mono class="text-muted truncate">{e.scope}</Mono>
-                    <span class="sm:ml-auto text-xs font-mono truncate">
+                    <Mono className="text-muted-foreground truncate">{e.scope}</Mono>
+                    <span className="sm:ml-auto text-xs font-mono truncate">
                       {/^[0-9a-f]{64}$/.test(e.actor) ? shortNpub(e.actor) : e.actor}
                     </span>
                   </li>
                 ))}
               </ol>
               {list.length >= limit && (
-                <div class="flex justify-center pt-3">
+                <div className="flex justify-center pt-3">
                   <Button onClick={() => setLimit(limit + 50)}>Load more</Button>
                 </div>
               )}

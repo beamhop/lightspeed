@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import { createApi, normalizePolicy } from './api'
 import { signInWithSigner, validTotp } from './auth'
-import { diffPolicy, retentionLabel } from './components/PolicyEditor'
 import { createMockApi } from './mock/server'
 import { KIND_ADMIN_AUTH, localSigner, verifyEvent } from './nostr'
-import { diffSettings } from './screens/Settings'
+import { diffPolicy, retentionLabel } from './policy'
+import { diffSettings } from './settings'
 import type { NostrEvent } from './types'
 
 describe('sign-in', () => {

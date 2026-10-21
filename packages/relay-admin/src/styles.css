@@ -1,8 +1,37 @@
+/* Relay admin: Tailwind v4 + shadcn/ui. The palette mirrors packages/ui/src/tokens.css (the --bh-*
+ * variables stay defined for the mascot and charts). Dark is the default; Settings toggles html.light. */
 @import "tailwindcss";
+@import "tw-animate-css";
 @import "@beamhop/ui/tokens.css";
 @import "uplot/dist/uPlot.min.css";
 
-/* Light theme override (dark is the default). Toggled from Settings. */
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --radius: 0.625rem;
+  --background: var(--bh-midnight);
+  --foreground: var(--bh-text);
+  --card: var(--bh-surface);
+  --card-foreground: var(--bh-text);
+  --popover: var(--bh-surface);
+  --popover-foreground: var(--bh-text);
+  --primary: var(--bh-teal);
+  --primary-foreground: var(--bh-midnight);
+  --secondary: var(--bh-surface-raised);
+  --secondary-foreground: var(--bh-text);
+  --muted: var(--bh-surface-raised);
+  --muted-foreground: var(--bh-text-muted);
+  --accent: var(--bh-surface-raised);
+  --accent-foreground: var(--bh-text);
+  --destructive: var(--bh-danger);
+  --border: var(--bh-border);
+  --input: var(--bh-border);
+  --ring: var(--bh-teal);
+  --violet: var(--bh-violet);
+  --success: var(--bh-success);
+  --warning: var(--bh-warning);
+}
+
 html.light {
   --bh-midnight: #f5f6fb;
   --bh-surface: #ffffff;
@@ -12,42 +41,54 @@ html.light {
   --bh-text-muted: #5b628a;
   --bh-teal: #0f9f8c;
   --bh-violet: #6b5bea;
+  --bh-danger: #dc2626;
+  --bh-warning: #b7791f;
+  --bh-success: #16a34a;
+  --primary-foreground: #ffffff;
 }
 
 @theme inline {
-  --color-midnight: var(--bh-midnight);
-  --color-surface: var(--bh-surface);
-  --color-raised: var(--bh-surface-raised);
-  --color-line: var(--bh-border);
-  --color-ink: var(--bh-text);
-  --color-muted: var(--bh-text-muted);
-  --color-teal: var(--bh-teal);
-  --color-violet: var(--bh-violet);
-  --color-ok: var(--bh-success);
-  --color-warn: var(--bh-warning);
-  --color-danger: var(--bh-danger);
   --font-sans: var(--bh-font-sans);
   --font-mono: var(--bh-font-mono);
-  --radius-sm: var(--bh-radius-sm);
-  --radius-md: var(--bh-radius-md);
-  --radius-lg: var(--bh-radius-lg);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-violet: var(--violet);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
 }
 
-html,
-body {
-  background: var(--bh-midnight);
-  color: var(--bh-text);
-  font-family: var(--bh-font-sans);
-  -webkit-tap-highlight-color: transparent;
-}
-
-body {
-  min-height: 100dvh;
-}
-
-:focus-visible {
-  outline: 2px solid var(--bh-teal);
-  outline-offset: 2px;
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html,
+  body {
+    @apply bg-background text-foreground antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    min-height: 100dvh;
+  }
 }
 
 .pb-safe {
@@ -57,8 +98,8 @@ body {
 /* uPlot legend/axes in the palette */
 .uplot,
 .u-legend {
-  font-family: var(--bh-font-sans);
-  color: var(--bh-text-muted);
+  font-family: var(--font-sans);
+  color: var(--muted-foreground);
   font-size: 11px;
 }
 .u-legend .u-marker {

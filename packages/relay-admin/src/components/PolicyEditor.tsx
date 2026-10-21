@@ -1,59 +1,14 @@
-/** @jsxImportSource preact */
-import { useEffect, useState } from 'preact/hooks'
+import { useEffect, useState } from 'react'
 import { api } from '../ctx'
 import { formatDuration, formatKinds, parseKinds, parsePubkey, shortNpub } from '../format'
+import { diffPolicy, realmLabel, retentionLabel } from '../policy'
 import { performWrite } from '../store'
 import type { Policy, RetentionRule } from '../types'
 import { GLOBAL_REALM } from '../types'
 import { Async, useResource } from './Async'
 import { Badge, Button, Card, Field, Input } from './ui'
 
-export function realmLabel(realm: string): string {
-  return realm === GLOBAL_REALM ? 'the public relay (_global)' : `app realm ${realm}`
-}
-
-/** Describe what changed between two policies, for the confirmation scope. */
-export function diffPolicy(a: Policy, b: Policy): string[] {
-  const out: string[] = []
-  const list = (
-    name: string,
-    x: (string | number)[],
-    y: (string | number)[],
-    fmt = (v: string | number) => String(v),
-  ) => {
-    const add = y.filter((v) => !x.includes(v))
-    const rm = x.filter((v) => !y.includes(v))
-    if (add.length) out.push(`${name}: add ${add.map(fmt).join(', ')}`)
-    if (rm.length) out.push(`${name}: remove ${rm.map(fmt).join(', ')}`)
-  }
-  const pk = (v: string | number) => shortNpub(String(v))
-  list('Allowed pubkeys', a.pubkeys.allow, b.pubkeys.allow, pk)
-  list('Denied pubkeys', a.pubkeys.deny, b.pubkeys.deny, pk)
-  list('Allowed kinds', a.kinds.allow, b.kinds.allow)
-  list('Denied kinds', a.kinds.deny, b.kinds.deny)
-  list('AUTH-required kinds', a.authRequiredKinds, b.authRequiredKinds)
-  const rl = (r: Policy['rateLimits']['perIp']) =>
-    r.events ? `${r.events}/${r.windowSec}s` : 'unlimited'
-  if (rl(a.rateLimits.perIp) !== rl(b.rateLimits.perIp))
-    out.push(`Per-IP rate limit: ${rl(a.rateLimits.perIp)} → ${rl(b.rateLimits.perIp)}`)
-  if (rl(a.rateLimits.perPubkey) !== rl(b.rateLimits.perPubkey))
-    out.push(`Per-pubkey rate limit: ${rl(a.rateLimits.perPubkey)} → ${rl(b.rateLimits.perPubkey)}`)
-  if (a.maxEventSize !== b.maxEventSize)
-    out.push(`Max event size: ${a.maxEventSize} → ${b.maxEventSize} bytes`)
-  if (a.minPow !== b.minPow) out.push(`NIP-13 min PoW: ${a.minPow} → ${b.minPow} bits`)
-  if (JSON.stringify(a.retention) !== JSON.stringify(b.retention))
-    out.push(
-      `Retention rules: ${a.retention.length} → ${b.retention.length} rules (${b.retention.map(retentionLabel).join('; ') || 'keep everything'})`,
-    )
-  return out
-}
-
-export function retentionLabel(r: RetentionRule): string {
-  const parts = []
-  if (r.maxAgeSec) parts.push(`max age ${formatDuration(r.maxAgeSec)}`)
-  if (r.maxCount) parts.push(`keep ${r.maxCount}/pubkey`)
-  return `kinds ${formatKinds(r.kinds)}: ${parts.join(', ') || 'forever'}`
-}
+export { diffPolicy, realmLabel, retentionLabel }
 
 function ListEditor({
   label,
@@ -88,7 +43,7 @@ function ListEditor({
   }
   return (
     <Field label={label} error={err} help={help} hint={hint}>
-      <div class="flex gap-2">
+      <div className="flex gap-2">
         <Input
           value={draft}
           onValue={setDraft}
@@ -105,16 +60,16 @@ function ListEditor({
         </Button>
       </div>
       {items.length > 0 && (
-        <div class="flex flex-wrap gap-1.5 mt-2">
+        <div className="flex flex-wrap gap-1.5 mt-2">
           {items.map((i) => (
             <span
               key={i}
-              class="inline-flex items-center gap-1 rounded-full bg-raised border border-line pl-2.5 pr-1 py-0.5 text-xs font-mono"
+              className="inline-flex items-center gap-1 rounded-full bg-muted border border-border pl-2.5 pr-1 py-0.5 text-xs font-mono"
             >
               {render ? render(i) : i}
               <button
                 type="button"
-                class="px-1 text-muted hover:text-danger"
+                className="px-1 text-muted-foreground hover:text-destructive"
                 aria-label={`Remove ${i}`}
                 onClick={() => onChange(items.filter((x) => x !== i))}
               >
@@ -251,13 +206,13 @@ function PolicyForm({
   }
 
   const footer = (
-    <div class="flex items-center justify-between gap-2 sticky bottom-20 md:bottom-0 bg-surface/95 backdrop-blur py-3 -mx-4 px-4 border-t border-line mt-4">
-      <span class="text-xs text-muted">
+    <div className="flex items-center justify-between gap-2 sticky bottom-20 md:bottom-0 bg-card/95 backdrop-blur py-3 -mx-4 px-4 border-t border-border mt-4">
+      <span className="text-xs text-muted-foreground">
         {changes.length
           ? `${changes.length} unsaved change${changes.length > 1 ? 's' : ''}`
           : 'No changes'}
       </span>
-      <div class="flex gap-2">
+      <div className="flex gap-2">
         <Button variant="ghost" disabled={!changes.length} onClick={() => setP(saved)}>
           Reset
         </Button>
@@ -274,11 +229,11 @@ function PolicyForm({
         title={`Retention · ${realmLabel(realm)}`}
         description="Each rule targets some event kinds and limits how long or how many of them are kept. The nightly job deletes events that break a rule; kinds without a rule are kept forever. Example: kinds 7 (reactions) with max age 30 days."
       >
-        <div class="space-y-3">
+        <div className="space-y-4">
           {p.retention.map((r, i) => (
             <div
               key={i}
-              class="rounded-md border border-line p-3 grid sm:grid-cols-[2fr_1fr_1fr_auto] gap-3 items-end"
+              className="rounded-md border border-border p-3 grid sm:grid-cols-[2fr_1fr_1fr_auto] gap-3 items-end"
             >
               <KindsInput
                 label="Kinds"
@@ -348,7 +303,7 @@ function PolicyForm({
       title={`Policy · ${realmLabel(realm)}`}
       description="Every incoming event is checked against these rules before it is stored; rejected events get an error message back. Deny lists win over allow lists. Leave a list empty to not restrict on it."
     >
-      <div class="grid md:grid-cols-2 gap-4">
+      <div className="grid md:grid-cols-2 gap-4">
         <ListEditor
           label="Allowed pubkeys (empty = everyone)"
           help="If you add any pubkey here, only these authors can publish. Use it for a private or team relay. Press Enter or Add after each key."
@@ -386,7 +341,7 @@ function PolicyForm({
           hint="e.g. 20100, 20101 for private realms"
           help="Clients must prove who they are with NIP-42 AUTH before publishing or reading these kinds. Combine with Allowed pubkeys to keep a realm private."
         />
-        <div class="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <NumberInput
             label="Max event size (bytes)"
             value={p.maxEventSize}
@@ -402,7 +357,7 @@ function PolicyForm({
             hint="0 = off, max 40"
           />
         </div>
-        <div class="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <NumberInput
             label="Per-IP events"
             help="How many events one IP address may publish per window. Stops a single machine from flooding the relay."
@@ -422,7 +377,7 @@ function PolicyForm({
             min={1}
           />
         </div>
-        <div class="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <NumberInput
             label="Per-pubkey events"
             help="How many events one author (pubkey) may publish per window, regardless of IP. Catches spammers that rotate IP addresses."
@@ -450,7 +405,7 @@ function PolicyForm({
         </div>
       </div>
       {p.retention.length > 0 && (
-        <div class="mt-4 flex flex-wrap gap-1.5">
+        <div className="mt-4 flex flex-wrap gap-1.5">
           {p.retention.map((r, i) => (
             <Badge key={i} tone="violet">
               {retentionLabel(r)}

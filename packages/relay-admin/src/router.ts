@@ -1,7 +1,7 @@
 // Tiny history router on signals. Paths are app-relative ("/apps/abc"); the base (/admin) is added
 // when touching window.location.
 
-import { signal } from '@preact/signals'
+import { signal } from '@preact/signals-core'
 
 export type Params = Record<string, string>
 

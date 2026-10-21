@@ -1,6 +1,6 @@
-/** @jsxImportSource preact */
-import { effect } from '@preact/signals'
-import { useEffect } from 'preact/hooks'
+import { effect } from '@preact/signals-core'
+import { type ReactNode, useEffect } from 'react'
+import { useValue } from '@/lib/signals'
 import { ConfirmDialog, RevealOnceModal, Toasts } from './components/Dialogs'
 import { Layout } from './components/Layout'
 import { MascotMessage } from './components/Mascot'
@@ -20,7 +20,7 @@ import { session } from './store'
 
 export const ROUTES: {
   path: string
-  render: (p: Record<string, string>) => preact.ComponentChildren
+  render: (p: Record<string, string>) => ReactNode
 }[] = [
   { path: '/', render: () => <Overview /> },
   { path: '/nostr', render: () => <Nostr /> },
@@ -67,10 +67,11 @@ export function boot(): void {
 
 export function App() {
   useEffect(() => boot(), [])
-  const me = session.value
+  const me = useValue(session)
+  const path = useValue(currentPath)
   if (me === undefined) {
     return (
-      <div class="min-h-dvh flex items-center justify-center">
+      <div className="min-h-dvh flex items-center justify-center">
         <MascotMessage state="spinner" title="Hopping in…" />
       </div>
     )
@@ -84,7 +85,7 @@ export function App() {
       </>
     )
   }
-  const match = resolveRoute(currentPath.value)
+  const match = resolveRoute(path)
   return (
     <>
       <Layout>
@@ -92,7 +93,7 @@ export function App() {
           match.route.render(match.params)
         ) : (
           <MascotMessage state="angry" title="No such page">
-            <Link to="/" class="text-teal">
+            <Link to="/" className="text-primary underline-offset-4 hover:underline">
               Back to overview
             </Link>
           </MascotMessage>

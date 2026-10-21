@@ -1,6 +1,6 @@
-/** @jsxImportSource preact */
 import { colors } from '@beamhop/ui'
-import { useEffect, useState } from 'preact/hooks'
+import { useEffect, useState } from 'react'
+import { useValue } from '@/lib/signals'
 import { Async, useResource } from '../components/Async'
 import { Chart } from '../components/Chart'
 import { PolicyEditor } from '../components/PolicyEditor'
@@ -43,59 +43,57 @@ export function AppsList() {
         }
       />
       <Card pad={false}>
-        <div class="p-3 md:p-4">
-          <Async res={res} emptyTitle="No apps yet. Create the first one.">
-            {(apps) => (
-              <DataTable
-                rows={apps}
-                rowKey={(a) => a.id}
-                onRowClick={(a) => navigate(`/apps/${a.id}`)}
-                columns={[
-                  {
-                    key: 'name',
-                    label: 'Name',
-                    render: (a) => <span class="font-medium">{a.name}</span>,
-                  },
-                  {
-                    key: 'id',
-                    label: 'ID',
-                    help: 'The App ID your client passes to the Beamhop library. It also appears in the realm URLs (/a/<id>).',
-                    render: (a) => <Mono class="text-muted">{a.id}</Mono>,
-                  },
-                  {
-                    key: 'status',
-                    label: 'Status',
-                    help: 'Disabled apps keep their data but all their Nostr, TURN and data-relay traffic is refused.',
-                    render: (a) => (
-                      <Badge tone={a.enabled ? 'ok' : 'muted'}>
-                        {a.enabled ? 'enabled' : 'disabled'}
-                      </Badge>
-                    ),
-                  },
-                  {
-                    key: 'plan',
-                    label: 'Plan',
-                    help: 'The payment plan attached to this app, if any.',
-                    render: (a) => a.plan ?? '—',
-                    hideOnMobile: true,
-                  },
-                  {
-                    key: 'usage',
-                    label: 'Traffic (month)',
-                    help: 'Relayed bytes (TURN and data relay) this calendar month.',
-                    render: (a) => formatBytes(a.usage?.bytesMonth),
-                  },
-                  {
-                    key: 'created',
-                    label: 'Created',
-                    render: (a) => formatAgo(a.createdAt),
-                    hideOnMobile: true,
-                  },
-                ]}
-              />
-            )}
-          </Async>
-        </div>
+        <Async res={res} emptyTitle="No apps yet. Create the first one.">
+          {(apps) => (
+            <DataTable
+              rows={apps}
+              rowKey={(a) => a.id}
+              onRowClick={(a) => navigate(`/apps/${a.id}`)}
+              columns={[
+                {
+                  key: 'name',
+                  label: 'Name',
+                  render: (a) => <span className="font-medium">{a.name}</span>,
+                },
+                {
+                  key: 'id',
+                  label: 'ID',
+                  help: 'The App ID your client passes to the Beamhop library. It also appears in the realm URLs (/a/<id>).',
+                  render: (a) => <Mono className="text-muted-foreground">{a.id}</Mono>,
+                },
+                {
+                  key: 'status',
+                  label: 'Status',
+                  help: 'Disabled apps keep their data but all their Nostr, TURN and data-relay traffic is refused.',
+                  render: (a) => (
+                    <Badge tone={a.enabled ? 'ok' : 'muted'}>
+                      {a.enabled ? 'enabled' : 'disabled'}
+                    </Badge>
+                  ),
+                },
+                {
+                  key: 'plan',
+                  label: 'Plan',
+                  help: 'The payment plan attached to this app, if any.',
+                  render: (a) => a.plan ?? '—',
+                  hideOnMobile: true,
+                },
+                {
+                  key: 'usage',
+                  label: 'Traffic (month)',
+                  help: 'Relayed bytes (TURN and data relay) this calendar month.',
+                  render: (a) => formatBytes(a.usage?.bytesMonth),
+                },
+                {
+                  key: 'created',
+                  label: 'Created',
+                  render: (a) => formatAgo(a.createdAt),
+                  hideOnMobile: true,
+                },
+              ]}
+            />
+          )}
+        </Async>
       </Card>
       <CreateAppModal
         open={creating}
@@ -168,7 +166,7 @@ function CreateAppModal({
         </>
       }
     >
-      <div class="space-y-3">
+      <div className="space-y-4">
         <Field label="Name" hint="Shown to admins only. You can tell apps apart by it.">
           <Input value={name} onValue={setName} placeholder="My multiplayer game" autoFocus />
         </Field>
@@ -184,18 +182,20 @@ type DetailTab = 'keys' | 'quotas' | 'policy' | 'usage'
 
 export function AppDetail({ id }: { id: string }) {
   const res = useResource(() => api.apps.get(id), [id])
-  const tab = (currentQuery.value.get('tab') as DetailTab) || 'keys'
+  const tab = (useValue(currentQuery).get('tab') as DetailTab) || 'keys'
   return (
     <Async res={res}>
       {(app) => (
         <>
-          <div class="text-xs text-muted mb-1">
-            <Link to="/apps" class="hover:text-ink">
-              Apps
-            </Link>{' '}
-            / {app.name}
-          </div>
           <PageHeader
+            eyebrow={
+              <>
+                <Link to="/apps" className="hover:text-foreground">
+                  Apps
+                </Link>{' '}
+                / {app.name}
+              </>
+            }
             title={app.name}
             subtitle={<Mono>{app.id}</Mono>}
             intro={PAGE_HELP.app}
@@ -276,7 +276,7 @@ export function AppDetail({ id }: { id: string }) {
               },
             ]}
           />
-          <div class="pt-4">
+          <div className="flex flex-col gap-6">
             {tab === 'keys' && <Keys app={app} onChange={(a) => res.mutate(() => a)} />}
             {tab === 'quotas' && <Quotas app={app} onSaved={(a) => res.mutate(() => a)} />}
             {tab === 'policy' && <PolicyEditor realm={app.id} />}
@@ -320,15 +320,15 @@ function Keys({ app, onChange }: { app: App; onChange: (a: App) => void }) {
   }
   const relay = typeof location !== 'undefined' ? location.host : 'relay'
   return (
-    <div class="grid md:grid-cols-2 gap-4">
+    <div className="grid gap-6 md:grid-cols-2">
       <Card
         title="Secrets"
         description="Only the last characters are shown. Rotating issues a new value (shown once) and invalidates the old one."
       >
-        <dl class="space-y-3 text-sm">
-          <div class="flex items-center justify-between gap-2">
+        <dl className="space-y-3 text-sm">
+          <div className="flex items-center justify-between gap-2">
             <div>
-              <dt class="text-xs text-muted inline-flex items-center gap-1">
+              <dt className="text-xs text-muted-foreground inline-flex items-center gap-1">
                 TURN secret
                 <InfoTip label="TURN secret">
                   Shared secret the relay uses to sign short-lived TURN credentials (TURN REST,
@@ -344,9 +344,9 @@ function Keys({ app, onChange }: { app: App; onChange: (a: App) => void }) {
               Rotate
             </Button>
           </div>
-          <div class="flex items-center justify-between gap-2">
+          <div className="flex items-center justify-between gap-2">
             <div>
-              <dt class="text-xs text-muted inline-flex items-center gap-1">
+              <dt className="text-xs text-muted-foreground inline-flex items-center gap-1">
                 API key
                 <InfoTip label="API key">
                   Lets your backend request TURN credentials for its users (Authorization: Bearer
@@ -364,7 +364,7 @@ function Keys({ app, onChange }: { app: App; onChange: (a: App) => void }) {
         </dl>
       </Card>
       <Card title="Endpoints" description="Configure these URLs in your app and backend.">
-        <dl class="space-y-2 text-sm">
+        <dl className="space-y-2 text-sm">
           {[
             [
               'Realm relay',
@@ -383,17 +383,17 @@ function Keys({ app, onChange }: { app: App; onChange: (a: App) => void }) {
             ],
           ].map(([k, v, h]) => (
             <div key={k}>
-              <dt class="text-xs text-muted inline-flex items-center gap-1">
+              <dt className="text-xs text-muted-foreground inline-flex items-center gap-1">
                 {k}
                 <InfoTip label={k as string}>{h}</InfoTip>
               </dt>
-              <dd class="break-all">
+              <dd className="break-all">
                 <Mono>{v}</Mono>
               </dd>
             </div>
           ))}
           <div>
-            <dt class="text-xs text-muted">Created</dt>
+            <dt className="text-xs text-muted-foreground">Created</dt>
             <dd>{formatDate(app.createdAt)}</dd>
           </div>
         </dl>
@@ -464,7 +464,7 @@ export function Quotas({ app, onSaved }: { app: App; onSaved: (a: App) => void }
     changes.push(`Allowed MIME: ${(next.allowedMime ?? []).join(', ') || 'any'}`)
   return (
     <Card title="Quotas">
-      <div class="grid sm:grid-cols-2 gap-3">
+      <div className="grid sm:grid-cols-2 gap-3">
         {QUOTA_FIELDS.map((f) => (
           <Field
             key={f.key}
@@ -489,7 +489,7 @@ export function Quotas({ app, onSaved }: { app: App; onSaved: (a: App) => void }
           <Input value={mime} onValue={setMime} />
         </Field>
       </div>
-      <div class="flex justify-end gap-2 mt-4">
+      <div className="flex justify-end gap-2 mt-4">
         <Button
           variant="primary"
           disabled={!changes.length}
@@ -535,7 +535,7 @@ function Usage({ app }: { app: App }) {
     <Async res={res}>
       {(u) => (
         <>
-          <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
             <Stat
               label="Transfer (30d)"
               value={formatBytes(u.totals.bytes)}

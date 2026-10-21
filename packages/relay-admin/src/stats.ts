@@ -1,6 +1,6 @@
 // The single live stats stream: WebSocket /api/admin/stats -> signals, with reconnect + backoff.
 
-import { computed, type ReadonlySignal, signal } from '@preact/signals'
+import { computed, type ReadonlySignal, signal } from '@preact/signals-core'
 import type { StatsMessage } from './types'
 
 export type StreamStatus = 'idle' | 'connecting' | 'open' | 'reconnecting' | 'closed'

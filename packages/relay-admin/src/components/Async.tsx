@@ -1,6 +1,5 @@
-/** @jsxImportSource preact */
-import type { ComponentChildren } from 'preact'
-import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
+import type { ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { errorMessage } from '../store'
 import { MascotMessage } from './Mascot'
 import { Button } from './ui'
@@ -64,12 +63,12 @@ export function Async<T>({
   res: Resource<T>
   empty?: (d: T) => boolean
   emptyTitle?: string
-  children: (d: T) => ComponentChildren
+  children: (d: T) => ReactNode
 }) {
   if (res.data === undefined && res.error) {
     return (
       <MascotMessage state="angry" title="Could not load this">
-        <div class="mb-3">{errorMessage(res.error)}</div>
+        <div className="mb-3">{errorMessage(res.error)}</div>
         <Button onClick={() => void res.reload()}>Try again</Button>
       </MascotMessage>
     )
