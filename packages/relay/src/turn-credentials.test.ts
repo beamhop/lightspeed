@@ -9,7 +9,10 @@ let apiKey: string
 let secret: string
 
 beforeAll(async () => {
-  t = await startTestRelay({ turn: { publicHost: 'turn.example.org', credentialTtl: 600 } })
+  t = await startTestRelay({
+    apps: { open: false },
+    turn: { publicHost: 'turn.example.org', credentialTtl: 600 },
+  })
   cookie = await bootstrapPubkeyAdmin(t, getPublicKey(randomHex(32)))
   const r = await api(t.base, '/api/admin/apps', { cookie, body: { name: 'Game', id: 'game' } })
   apiKey = r.body.apiKey

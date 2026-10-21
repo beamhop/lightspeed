@@ -38,6 +38,8 @@ export interface RelayContext {
   refreshNip11(): void
   /** Re-apply admin.db config overrides onto live components. */
   applySettings(): void
+  /** Close realm and data relay sockets of apps that are no longer active. */
+  kickInactiveApps(): void
   alerts(): Alert[]
   overview(): Record<string, unknown>
   stats(): Record<string, unknown>

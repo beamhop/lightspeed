@@ -42,6 +42,7 @@ export function AppsList() {
           </Button>
         }
       />
+      <AppAccessCard />
       <Card pad={false}>
         <Async res={res} emptyTitle="No apps yet. Create the first one.">
           {(apps) => (
@@ -105,6 +106,47 @@ export function AppsList() {
         }}
       />
     </>
+  )
+}
+
+/** Open mode: whether unregistered app IDs may connect (settings `apps.open`). */
+function AppAccessCard() {
+  const res = useResource(() => api.settings.get(), [])
+  return (
+    <Card
+      title="App access"
+      description="Who may use the realm relays, data relay, TURN and media storage under /a/<app-id>."
+    >
+      <Async res={res}>
+        {(s) => (
+          <Toggle
+            label="Allow any app ID"
+            checked={s.apps.open}
+            hint={
+              s.apps.open
+                ? 'Any client can connect with any app ID. Unregistered apps get default quotas and NIP-98 TURN auth only. Disabled apps below stay blocked.'
+                : 'Only apps created here and enabled can connect.'
+            }
+            help="When on, clients do not need an app created here first. Turn it off to allow only the apps you create, one by one."
+            onChange={async (open) => {
+              const r = await performWrite({
+                title: open ? 'Allow any app ID' : 'Allow only registered apps',
+                action: open ? 'Open app access' : 'Restrict app access',
+                scope: open
+                  ? ['Any well-formed app ID can connect without being created here']
+                  : [
+                      'Only apps created here and enabled can connect',
+                      'Open connections of unregistered apps are closed now',
+                    ],
+                run: () => api.settings.put({ ...s, apps: { open } }),
+                success: open ? 'Any app ID can now connect' : 'Only registered apps can connect',
+              })
+              if (r.ok) res.mutate(() => r.value)
+            }}
+          />
+        )}
+      </Async>
+    </Card>
   )
 }
 

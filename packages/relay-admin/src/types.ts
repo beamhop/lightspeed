@@ -342,6 +342,8 @@ export interface Settings {
   /** `path` is fixed by the relay; `tokenSet` reports whether metrics.token is configured. */
   metrics: { enabled: boolean; path: string; tokenSet?: boolean }
   backups: { enabled: boolean; hourUtc: number; retentionDays: number }
+  /** `open`: any app ID may connect without being created here first. */
+  apps: { open: boolean }
 }
 
 export interface Backup {

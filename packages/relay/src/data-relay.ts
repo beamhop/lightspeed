@@ -149,6 +149,11 @@ export class DataRelay {
     for (const ws of this.peers.get(appId)?.values() ?? []) ws.close(4002, 'app-disabled')
   }
 
+  /** Disconnect the peers of every app that is no longer active (e.g. open mode switched off). */
+  kickInactive() {
+    for (const appId of this.peers.keys()) if (!this.apps.active(appId)) this.kickApp(appId)
+  }
+
   stats() {
     const perApp: Record<string, number> = {}
     let peers = 0

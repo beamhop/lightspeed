@@ -8,7 +8,7 @@ let t: TestRelay
 let cookie: string
 
 beforeAll(async () => {
-  t = await startTestRelay({ data: { maxFrameBytes: 4096 } })
+  t = await startTestRelay({ apps: { open: false }, data: { maxFrameBytes: 4096 } })
   cookie = await bootstrapPubkeyAdmin(t, getPublicKey(randomHex(32)))
   await api(t.base, '/api/admin/apps', { cookie, body: { name: 'A', id: 'app-a' } })
   await api(t.base, '/api/admin/apps', { cookie, body: { name: 'B', id: 'app-b' } })

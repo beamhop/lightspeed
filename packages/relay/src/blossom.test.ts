@@ -11,6 +11,7 @@ const pk = getPublicKey(sk)
 
 beforeAll(async () => {
   t = await startTestRelay({
+    apps: { open: false },
     blossom: {
       maxUploadBytes: 1000,
       perPubkeyQuotaBytes: 600,
