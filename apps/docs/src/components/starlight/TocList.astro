@@ -1,0 +1,28 @@
+---
+// Nested "On this page" links. The current heading gets data-active (see src/lib/toc.ts).
+type Toc = NonNullable<typeof Astro.locals.starlightRoute.toc>
+
+interface Props {
+  items: Toc['items']
+  depth?: number
+}
+
+const { items, depth = 0 } = Astro.props
+---
+
+<ul class="flex flex-col">
+  {
+    items.map((h) => (
+      <li>
+        <a
+          href={`#${h.slug}`}
+          style={{ paddingLeft: `${depth * 0.75}rem` }}
+          class="block py-1 text-[0.8125rem] leading-snug text-muted-foreground no-underline transition-colors hover:text-foreground data-[active]:font-medium data-[active]:text-foreground"
+        >
+          {h.text}
+        </a>
+        {h.children.length > 0 && <Astro.self items={h.children} depth={depth + 1} />}
+      </li>
+    ))
+  }
+</ul>

@@ -1,0 +1,32 @@
+---
+// Splash-page hero (only the 404 page uses one; the home page is src/pages/index.astro). Hero
+// images are not supported: no page sets one.
+import { ArrowLeft } from 'lucide-react'
+import { buttonVariants } from '@/components/ui/button'
+
+const { data } = Astro.locals.starlightRoute.entry
+const { title = data.title, tagline, actions = [] } = data.hero || {}
+const variants = { primary: 'default', secondary: 'outline', minimal: 'ghost' } as const
+const base = import.meta.env.BASE_URL.replace(/\/$/, '')
+---
+
+<div class="flex flex-col items-center gap-4 py-16 text-center md:py-24">
+  <h1 id="_top" class="text-4xl font-semibold tracking-tight sm:text-5xl">{title}</h1>
+  {tagline && <p class="max-w-md text-balance text-muted-foreground" set:html={tagline} />}
+  <div class="mt-2 flex flex-wrap justify-center gap-2">
+    {
+      actions.length > 0 ? (
+        actions.map((a) => (
+          <a href={a.link} class={buttonVariants({ variant: variants[a.variant] ?? 'default' })}>
+            {a.text}
+          </a>
+        ))
+      ) : (
+        <a href={`${base}/get-started/`} class={buttonVariants({ variant: 'outline' })}>
+          <ArrowLeft />
+          Back to the docs
+        </a>
+      )
+    }
+  </div>
+</div>

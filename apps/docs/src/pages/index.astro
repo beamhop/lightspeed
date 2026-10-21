@@ -15,25 +15,18 @@ import {
   TriangleAlert,
 } from 'lucide-react'
 import bunny from '@/assets/bunny.svg'
-import GitHubIcon from '@/components/GitHubIcon.astro'
-import ThemeToggle from '@/components/ThemeToggle.astro'
+import SiteHeader from '@/components/SiteHeader.astro'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import Landing from '@/layouts/Landing.astro'
+import { GITHUB_URL } from '@/lib/site'
 import { cn } from '@/lib/utils'
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '')
 const href = (path: string) => `${base}/${path}`
-const github = 'https://github.com/beamhop/lightspeed'
-
-const nav = [
-  { label: 'Docs', href: href('get-started/') },
-  { label: 'Concepts', href: href('concepts/identity/') },
-  { label: 'Relay', href: href('relay/install/') },
-  { label: 'API', href: href('api/') },
-]
+const github = GITHUB_URL
 
 const features = [
   {
@@ -124,37 +117,15 @@ await chat.send({ text: 'hello, peers' })`
   title="Beamhop Lightspeed"
   description="Peer-to-peer rooms for the web: typed protocols over WebRTC with Nostr signaling, plus a self-hostable relay with TURN."
 >
-  <header class="sticky top-0 z-40 border-b bg-background/80 backdrop-blur-lg">
-    <div class="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4 sm:px-6">
-      <a href={href('')} class="flex items-center gap-2 font-semibold tracking-tight">
-        <img src={bunny.src} alt="" width="28" height="28" />
-        <span>beamhop <span class="text-primary">lightspeed</span></span>
-      </a>
-      <nav class="hidden items-center gap-0.5 md:flex" aria-label="Main">
-        {
-          nav.map((l) => (
-            <a
-              href={l.href}
-              class={cn(
-                buttonVariants({ variant: 'ghost', size: 'sm' }),
-                'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {l.label}
-            </a>
-          ))
-        }
-      </nav>
-      <div class="ml-auto flex items-center gap-1">
-        <a href={github} class={buttonVariants({ variant: 'ghost', size: 'icon' })}>
-          <span class="sr-only">GitHub</span>
-          <GitHubIcon class="size-4" />
-        </a>
-        <ThemeToggle />
-        <a href={href('get-started/')} class={cn(buttonVariants({ size: 'sm' }), 'ml-1 hidden sm:inline-flex')}>Get started</a>
-      </div>
-    </div>
-  </header>
+  <SiteHeader container="max-w-6xl sm:px-6">
+    <a
+      slot="cta"
+      href={href('get-started/')}
+      class={cn(buttonVariants({ size: 'sm' }), 'hidden sm:inline-flex')}
+    >
+      Get started
+    </a>
+  </SiteHeader>
 
   <main>
     <section class="relative overflow-hidden border-b">

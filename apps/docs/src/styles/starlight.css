@@ -1,15 +1,19 @@
 /*
- * Docs pages: Starlight restyled with the shadcn/ui tokens from theme.css. Tailwind's theme and
- * utilities load in their own layers after Starlight's; Tailwind's preflight is left out so it
- * doesn't fight Starlight's reset. Rules below are unlayered so they win over Starlight's.
+ * Docs pages. Starlight is only the engine: every visible piece is a shadcn/ui-built override in
+ * src/components/starlight/. This file loads Tailwind (preflight included) on the shared tokens,
+ * sets the typography for Markdown (.bh-prose), and restyles the few Starlight parts that are kept
+ * as they are: search, asides and Expressive Code blocks.
+ *
+ * Layer order: Tailwind's preflight < Starlight's layers < theme < our components < utilities.
  */
 @layer base, starlight, theme, components, utilities;
 
 @import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
 @import "tailwindcss/utilities.css" layer(utilities);
 @import "./theme.css";
 
-/* Starlight's palette, derived from the shadcn tokens. */
+/* Starlight's palette, derived from the shadcn tokens (used by search and code blocks). */
 :root,
 :root[data-theme="dark"],
 :root[data-theme="light"] {
@@ -17,7 +21,7 @@
   --sl-font-mono: var(--font-mono);
   --sl-color-white: var(--foreground);
   --sl-color-black: var(--background);
-  --sl-color-text: color-mix(in oklab, var(--foreground) 82%, var(--muted-foreground));
+  --sl-color-text: var(--foreground);
   --sl-color-gray-1: var(--foreground);
   --sl-color-gray-2: color-mix(in oklab, var(--foreground) 80%, var(--muted-foreground));
   --sl-color-gray-3: var(--muted-foreground);
@@ -32,226 +36,262 @@
   --sl-color-text-invert: var(--primary-foreground);
   --sl-color-bg-accent: var(--primary);
   --sl-color-bg: var(--background);
-  --sl-color-bg-nav: color-mix(in oklab, var(--background) 82%, transparent);
+  --sl-color-bg-nav: var(--background);
   --sl-color-bg-sidebar: var(--background);
   --sl-color-bg-inline-code: var(--muted);
   --sl-color-hairline: var(--border);
   --sl-color-hairline-light: var(--border);
   --sl-color-hairline-shade: var(--border);
-  --sl-color-backdrop-overlay: color-mix(in oklab, var(--background) 70%, transparent);
+  --sl-color-backdrop-overlay: rgb(0 0 0 / 0.5);
   --sl-color-orange: var(--warning);
-  --sl-color-orange-low: color-mix(in oklab, var(--warning) 9%, var(--background));
-  --sl-color-orange-high: var(--warning);
   --sl-color-purple: var(--violet);
-  --sl-color-purple-low: color-mix(in oklab, var(--violet) 9%, var(--background));
-  --sl-color-purple-high: var(--violet);
   --sl-color-red: var(--destructive);
-  --sl-color-red-low: color-mix(in oklab, var(--destructive) 9%, var(--background));
-  --sl-color-red-high: var(--destructive);
   --sl-color-blue: var(--primary);
-  --sl-color-blue-low: color-mix(in oklab, var(--primary) 8%, var(--background));
-  --sl-color-blue-high: var(--primary);
-  --sl-text-h1: 2.25rem;
-  --sl-nav-height: 3.75rem;
+  --sl-nav-height: 3.5rem;
+  --sl-mobile-toc-height: 3rem;
+  --sl-main-pad: 0;
 }
 
-body {
-  -webkit-font-smoothing: antialiased;
+/* Anchors land below the sticky header (and the phone "On this page" bar). Unlayered on purpose:
+   it has to beat the scroll padding Starlight's Page sets for its own layout. */
+:root {
+  scroll-padding-top: 5rem;
+}
+:root[data-has-toc] {
+  scroll-padding-top: 8rem;
+}
+@media (min-width: 80rem) {
+  :root[data-has-toc] {
+    scroll-padding-top: 5rem;
+  }
 }
 
-/* Header: translucent bar with a hairline, like the shadcn site. */
-header.header {
-  backdrop-filter: saturate(1.4) blur(10px);
-  border-bottom: 1px solid var(--border);
-}
+@layer components {
+  * {
+    border-color: var(--border);
+    outline-color: color-mix(in oklab, var(--ring) 50%, transparent);
+  }
 
-.site-title {
-  gap: 0.5rem;
-  font-size: 1rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--foreground);
-}
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
 
-.site-title img {
-  height: 1.75rem;
-  width: auto;
-}
+  /* ---------------------------------------------------------------- Markdown typography */
+  /* The shadcn/ui typography scale (ui.shadcn.com/docs/components/typography). Block spacing
+     is a single flow rule so every page has the same rhythm. */
+  .bh-prose {
+    @apply text-[0.9375rem] leading-7 text-foreground sm:text-base;
+  }
 
-/* Search button: an outlined input. */
-site-search button[data-open-modal] {
-  border: 1px solid var(--input);
-  border-radius: calc(var(--radius) - 2px);
-  background: color-mix(in oklab, var(--muted) 50%, transparent);
-  color: var(--muted-foreground);
-  font-size: 0.875rem;
-  transition:
-    border-color 0.15s,
-    background-color 0.15s;
-}
+  .bh-prose > * + * {
+    margin-top: 1.25rem;
+  }
 
-site-search button[data-open-modal]:hover {
-  border-color: color-mix(in oklab, var(--primary) 50%, var(--input));
-  color: var(--foreground);
-}
+  .bh-prose :where(h2) {
+    @apply mt-12 scroll-m-20 border-b pb-2 text-2xl leading-tight font-semibold tracking-tight;
+  }
+  .bh-prose :where(h3) {
+    @apply mt-10 scroll-m-20 text-xl leading-snug font-semibold tracking-tight;
+  }
+  .bh-prose :where(h4) {
+    @apply mt-8 scroll-m-20 text-lg leading-snug font-semibold tracking-tight;
+  }
+  .bh-prose :where(h5, h6) {
+    @apply mt-8 scroll-m-20 text-base font-semibold;
+  }
+  .bh-prose > :where(h2, h3, h4, h5, h6) + * {
+    margin-top: 1rem;
+  }
+  .bh-prose :where(h2, h3, h4, h5, h6) code {
+    font-size: 0.9em;
+  }
 
-site-search button[data-open-modal] kbd {
-  border-radius: 0.375rem;
-  background: var(--background);
-  border: 1px solid var(--border);
-}
+  .bh-prose :where(a:not([class])) {
+    @apply font-medium text-foreground underline decoration-primary/50 underline-offset-4 transition-colors hover:text-primary hover:decoration-primary;
+  }
+  .bh-prose :where(strong) {
+    @apply font-semibold text-foreground;
+  }
 
-site-search dialog {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--popover);
-}
+  .bh-prose :where(ul) {
+    @apply list-disc pl-6;
+  }
+  .bh-prose :where(ol) {
+    @apply list-decimal pl-6;
+  }
+  .bh-prose :where(li) {
+    @apply pl-1;
+  }
+  .bh-prose :where(li + li, li > ul, li > ol, li > p + *) {
+    @apply mt-2;
+  }
+  .bh-prose :where(li)::marker {
+    color: var(--muted-foreground);
+  }
 
-/* Sidebar: muted section labels and pill-shaped links. */
-.sidebar-pane {
-  border-inline-end-color: var(--border);
-}
+  .bh-prose :where(:not(pre) > code) {
+    @apply relative rounded-md bg-muted px-[0.35rem] py-[0.15rem] font-mono text-[0.8125rem] font-medium break-words text-foreground;
+  }
+  .bh-prose :where(kbd) {
+    @apply inline-flex h-5 items-center rounded border bg-muted px-1.5 font-mono text-[0.75rem] font-medium;
+  }
 
-.sidebar-content a {
-  border-radius: calc(var(--radius) - 4px);
-  padding-block: 0.3rem;
-  font-size: 0.875rem;
-  color: var(--muted-foreground);
-  transition:
-    background-color 0.15s,
-    color 0.15s;
-}
+  .bh-prose :where(blockquote) {
+    @apply border-l-2 pl-6 text-muted-foreground;
+  }
+  .bh-prose :where(hr) {
+    @apply my-10 border-t;
+  }
+  .bh-prose :where(img, video, iframe) {
+    @apply max-w-full rounded-lg border;
+  }
 
-.sidebar-content a:hover {
-  background: var(--accent);
-  color: var(--foreground);
-}
+  .bh-prose :where(dl) {
+    @apply grid gap-1;
+  }
+  .bh-prose :where(dt) {
+    @apply font-medium;
+  }
+  .bh-prose :where(dd) {
+    @apply pl-4 text-muted-foreground;
+  }
 
-.sidebar-content a[aria-current="page"],
-.sidebar-content a[aria-current="page"]:hover,
-.sidebar-content a[aria-current="page"]:focus {
-  background: var(--accent);
-  color: var(--foreground);
-  font-weight: 500;
-  box-shadow: inset 2px 0 0 var(--primary);
-}
+  /* <details> as a shadcn collapsible card. */
+  .bh-prose :where(details) {
+    @apply rounded-lg border px-4 py-3;
+  }
+  .bh-prose :where(details > summary) {
+    @apply cursor-pointer font-medium;
+  }
+  .bh-prose :where(details[open] > summary) {
+    @apply mb-3;
+  }
 
-.sidebar-content .group-label .large,
-.sidebar-content a.large {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--foreground);
-}
+  /* Tables get shadcn <Table> classes from src/lib/rehype-shadcn-table.mjs; this only keeps
+     inline code inside cells compact. */
+  .bh-prose :where([data-slot="table-container"]) code {
+    @apply text-[0.75rem];
+  }
 
-.sidebar-content summary {
-  border-radius: calc(var(--radius) - 4px);
-}
+  .bh-prose > :first-child {
+    margin-top: 0;
+  }
 
-/* Content */
-.sl-markdown-content :is(h1, h2, h3, h4) {
-  letter-spacing: -0.02em;
-}
+  /* ---------------------------------------------------------------- Asides as <Alert> */
+  /* Starlight renders `:::note` etc. as .starlight-aside; this mirrors shadcn's Alert layout:
+     icon in the first column, title and description in the second. */
+  .starlight-aside {
+    @apply relative grid w-full grid-cols-[1rem_1fr] items-start gap-x-3 gap-y-1 rounded-lg border bg-card px-4 py-3 text-sm text-card-foreground;
+    border-inline-start-width: 1px;
+    border-color: var(--border);
+  }
+  .starlight-aside__title {
+    display: contents;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.25rem;
+    letter-spacing: -0.01em;
+    color: var(--aside-accent);
+  }
+  .starlight-aside__icon {
+    @apply size-4 translate-y-0.5;
+    color: var(--aside-accent);
+  }
+  .starlight-aside__title + .starlight-aside__content {
+    margin-top: 0;
+  }
+  .starlight-aside__content {
+    @apply col-start-2 grid gap-2 leading-relaxed text-muted-foreground;
+  }
+  .starlight-aside__content > * + * {
+    margin-top: 0;
+  }
+  .starlight-aside__content a {
+    color: inherit;
+  }
+  .starlight-aside--note {
+    --aside-accent: var(--foreground);
+  }
+  .starlight-aside--tip {
+    --aside-accent: var(--primary);
+    @apply border-primary/30;
+  }
+  .starlight-aside--caution {
+    --aside-accent: var(--warning);
+    @apply border-warning/30 bg-warning/5;
+  }
+  .starlight-aside--danger {
+    --aside-accent: var(--destructive);
+    @apply border-destructive/30 bg-destructive/5;
+  }
+  .starlight-aside--danger .starlight-aside__content {
+    color: color-mix(in oklab, var(--destructive) 90%, var(--foreground));
+  }
 
-h1#_top {
-  font-weight: 700;
-  letter-spacing: -0.03em;
-}
+  /* ---------------------------------------------------------------- Search */
+  /* Starlight's Pagefind search is kept; its trigger becomes the shadcn docs search button and its
+     dialog a shadcn Dialog. */
+  site-search button[data-open-modal] {
+    @apply inline-flex size-9 items-center justify-center gap-2 rounded-md border-0 bg-transparent p-0 text-sm font-normal text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground lg:h-8 lg:w-56 lg:justify-start lg:border lg:border-input lg:bg-muted/50 lg:px-2.5 xl:w-64;
+  }
+  site-search button[data-open-modal] > svg {
+    @apply size-4 shrink-0;
+  }
+  site-search button[data-open-modal] > span {
+    @apply hidden truncate lg:block;
+  }
+  site-search button[data-open-modal] > kbd {
+    @apply pointer-events-none ml-auto hidden h-5 items-center gap-0.5 rounded border bg-background px-1.5 font-mono text-[10px] font-medium text-muted-foreground lg:inline-flex;
+  }
+  site-search button[data-open-modal] > kbd kbd {
+    @apply border-0 bg-transparent p-0 font-mono text-[10px];
+  }
+  site-search dialog {
+    @apply rounded-xl border bg-popover text-popover-foreground shadow-2xl;
+  }
+  site-search dialog::backdrop {
+    @apply bg-black/50 backdrop-blur-[2px];
+  }
+  site-search button[data-close-modal] {
+    @apply text-sm font-medium text-primary;
+  }
+  /* Results as a shadcn Command list. */
+  #starlight__search {
+    --pagefind-ui-border-radius: 0.5rem;
+  }
+  #starlight__search .pagefind-ui__search-input {
+    @apply rounded-md;
+  }
+  #starlight__search .pagefind-ui__result-title:not(:where(.pagefind-ui__result-nested *)),
+  #starlight__search .pagefind-ui__result-nested {
+    background-color: color-mix(in oklab, var(--muted) 45%, transparent);
+  }
+  #starlight__search .pagefind-ui__result-title:not(:where(.pagefind-ui__result-nested *)):hover,
+  #starlight__search
+    .pagefind-ui__result-title:not(:where(.pagefind-ui__result-nested *)):focus-within,
+  #starlight__search .pagefind-ui__result-nested:hover,
+  #starlight__search .pagefind-ui__result-nested:focus-within {
+    background-color: var(--accent);
+  }
+  #starlight__search .pagefind-ui__result-link {
+    color: var(--foreground);
+  }
+  #starlight__search mark {
+    @apply rounded-sm bg-primary/20 px-0.5 text-foreground;
+  }
 
-.sl-markdown-content a:not(:where(.not-content *)) {
-  color: var(--foreground);
-  text-decoration-color: color-mix(in oklab, var(--primary) 60%, transparent);
-  text-underline-offset: 0.2em;
-}
+  /* ---------------------------------------------------------------- Code blocks */
+  .bh-prose .expressive-code .frame {
+    box-shadow: none;
+  }
 
-.sl-markdown-content a:not(:where(.not-content *)):hover {
-  color: var(--primary);
-}
-
-.sl-markdown-content :not(pre) > code {
-  border: 1px solid var(--border);
-  border-radius: 0.375rem;
-  padding: 0.1em 0.35em;
-  font-size: 0.85em;
-}
-
-.sl-markdown-content table {
-  border-collapse: separate;
-  border-spacing: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-
-.sl-markdown-content :is(th, td) {
-  border: 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.sl-markdown-content tr:last-child td {
-  border-bottom: 0;
-}
-
-.sl-markdown-content th {
-  background: var(--muted);
-  font-weight: 500;
-}
-
-/* Asides as shadcn alerts. */
-.starlight-aside {
-  border: 1px solid color-mix(in oklab, var(--sl-color-asides-border) 35%, var(--border));
-  border-inline-start: 1px solid
-    color-mix(in oklab, var(--sl-color-asides-border) 35%, var(--border));
-  border-radius: var(--radius);
-  color: var(--foreground);
-}
-
-.starlight-aside__title {
-  font-size: 0.9375rem;
-}
-
-/* Cards, link cards and pagination as shadcn cards. */
-.card,
-.sl-link-card,
-.pagination-links a {
-  border: 1px solid var(--border) !important;
-  border-radius: var(--radius) !important;
-  background: var(--card);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
-  transition:
-    border-color 0.15s,
-    background-color 0.15s;
-}
-
-.sl-link-card:hover,
-.pagination-links a:hover {
-  border-color: color-mix(in oklab, var(--primary) 50%, var(--border)) !important;
-  background: color-mix(in oklab, var(--accent) 50%, var(--card));
-}
-
-.card .icon {
-  color: var(--primary);
-}
-
-.pagination-links a .link-title {
-  color: var(--foreground);
-  font-weight: 600;
-}
-
-/* Right-hand table of contents. */
-starlight-toc a {
-  color: var(--muted-foreground);
-}
-
-starlight-toc a[aria-current="true"],
-starlight-toc a:hover {
-  color: var(--primary);
-}
-
-/* The live demo embedded in docs pages (see DemoEmbed.astro). */
-.demo-frame {
-  width: 100%;
-  height: min(720px, 80vh);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: #0b0e1a;
+  /* The live demo embedded in docs pages (see DemoEmbed.astro). */
+  .demo-frame {
+    @apply h-[min(720px,80vh)] w-full rounded-lg border bg-[#0b0e1a];
+  }
 }

@@ -1,0 +1,62 @@
+---
+// The one site header, shared by the landing page and every docs page. Slots: `menu` (the docs
+// sidebar toggle on phones), `search` and `cta`. `container` sets the width so the header lines up
+// with the page below it (the docs grid, or the landing page's narrower sections).
+import bunny from '@/assets/bunny.svg'
+import { buttonVariants } from '@/components/ui/button'
+import { GITHUB_URL, NAV_LINKS, navActive } from '@/lib/site'
+import { cn } from '@/lib/utils'
+import GitHubIcon from './GitHubIcon.astro'
+import ThemeToggle from './ThemeToggle.astro'
+
+interface Props {
+  container?: string
+}
+
+const { container = 'max-w-[88rem] md:px-6' } = Astro.props
+const base = import.meta.env.BASE_URL.replace(/\/$/, '')
+const current = Astro.url.pathname
+---
+
+<header
+  class="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-lg supports-[backdrop-filter]:bg-background/70 print:hidden"
+>
+  <div class={cn('mx-auto flex h-14 w-full items-center gap-2 px-4 md:gap-4', container)}>
+    <slot name="menu" />
+    <a
+      href={`${base}/`}
+      class="flex shrink-0 items-center gap-2 font-semibold tracking-tight text-foreground"
+    >
+      <img src={bunny.src} alt="" width="28" height="28" class="size-7" />
+      <span>beamhop <span class="text-primary">lightspeed</span></span>
+    </a>
+    <nav class="hidden items-center gap-0.5 md:flex" aria-label="Main">
+      {
+        NAV_LINKS.map((l) => (
+          <a
+            href={`${base}${l.href}`}
+            aria-current={navActive(l, current, base) ? 'page' : undefined}
+            class={cn(
+              buttonVariants({ variant: 'ghost', size: 'sm' }),
+              'text-muted-foreground hover:text-foreground aria-[current=page]:text-foreground',
+            )}
+          >
+            {l.label}
+          </a>
+        ))
+      }
+    </nav>
+    <div class="ml-auto flex items-center gap-1 md:gap-2">
+      <slot name="search" />
+      <span class="hidden h-5 w-px bg-border lg:block" aria-hidden="true"></span>
+      <div class="flex items-center">
+        <a href={GITHUB_URL} rel="me" class={buttonVariants({ variant: 'ghost', size: 'icon' })}>
+          <span class="sr-only">GitHub</span>
+          <GitHubIcon class="size-4" />
+        </a>
+        <ThemeToggle />
+      </div>
+      <slot name="cta" />
+    </div>
+  </div>
+</header>

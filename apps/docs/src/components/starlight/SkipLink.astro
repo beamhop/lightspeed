@@ -1,0 +1,14 @@
+---
+import { buttonVariants } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+---
+
+<a
+  href="#_top"
+  class={cn(
+    buttonVariants({ size: 'sm' }),
+    'sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-4 focus:z-[60]',
+  )}
+>
+  {Astro.locals.t('skipLink.label')}
+</a>

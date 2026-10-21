@@ -1,0 +1,18 @@
+---
+// Content and the "On this page" column. Below xl the aside dissolves (display: contents) so the
+// phone table of contents can stick under the header for the whole page.
+import { cn } from '@/lib/utils'
+
+const { toc } = Astro.locals.starlightRoute
+---
+
+<div class={cn('flex flex-col', toc && 'xl:grid xl:grid-cols-[minmax(0,1fr)_14rem] xl:gap-12')}>
+  {
+    toc && (
+      <aside class="contents print:hidden xl:order-2 xl:block">
+        <slot name="right-sidebar" />
+      </aside>
+    )
+  }
+  <div class="min-w-0 xl:order-1"><slot /></div>
+</div>

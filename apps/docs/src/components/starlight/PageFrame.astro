@@ -1,0 +1,79 @@
+---
+// Docs page frame: sticky header, then one grid (sidebar | content) inside the same container as
+// the header, so the logo, the sidebar and the content all line up. On phones the sidebar is a
+// shadcn-style sheet (a popover, so it opens and closes without JavaScript).
+import { X } from 'lucide-react'
+import { buttonVariants } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+
+const { hasSidebar } = Astro.locals.starlightRoute
+---
+
+<div class="flex min-h-dvh flex-col">
+  <slot name="header" />
+  <div
+    class={cn(
+      'mx-auto w-full max-w-[88rem] flex-1 px-4 md:px-6',
+      hasSidebar &&
+        'md:grid md:grid-cols-[13rem_minmax(0,1fr)] md:gap-8 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-12',
+    )}
+  >
+    {
+      hasSidebar && (
+        <nav class="print:hidden" aria-label={Astro.locals.t('sidebarNav.accessibleLabel')}>
+          <bh-sidebar-pane
+            popover=""
+            id="starlight__sidebar"
+            class={cn(
+              // Phone: a sheet sliding over the page from the left.
+              'fixed inset-y-0 right-auto left-0 z-50 m-0 h-dvh w-80 max-w-[85vw] overflow-y-auto border-0 border-r bg-background p-0 text-foreground shadow-lg backdrop:bg-black/50',
+              // Desktop: a sticky column under the header.
+              'md:sticky md:top-14 md:z-auto md:block md:h-[calc(100dvh-3.5rem)] md:w-auto md:max-w-none md:border-r-0 md:bg-transparent md:shadow-none md:[scrollbar-width:none]',
+            )}
+          >
+            <div class="flex h-14 items-center justify-between border-b px-4 md:hidden">
+              <span class="text-sm font-semibold">Menu</span>
+              <button
+                type="button"
+                popovertarget="starlight__sidebar"
+                popovertargetaction="hide"
+                class={buttonVariants({ variant: 'ghost', size: 'icon-sm' })}
+              >
+                <X />
+                <span class="sr-only">Close menu</span>
+              </button>
+            </div>
+            <div class="px-4 py-6 md:-ml-2 md:px-0 md:pr-2">
+              <slot name="sidebar" />
+            </div>
+          </bh-sidebar-pane>
+        </nav>
+      )
+    }
+    <div class="min-w-0">
+      <slot />
+    </div>
+  </div>
+</div>
+
+<script>
+  // The sheet is a popover only on phones; on desktop it is a plain sticky column.
+  class SidebarPane extends HTMLElement {
+    constructor() {
+      super()
+      const desktop = matchMedia('(min-width: 48rem)')
+      const sync = () => {
+        this.popover = desktop.matches ? null : 'auto'
+      }
+      sync()
+      desktop.addEventListener('change', sync)
+      this.addEventListener('toggle', (e) => {
+        document.body.style.overflow = (e as ToggleEvent).newState === 'open' ? 'hidden' : ''
+      })
+      this.addEventListener('click', (e) => {
+        if (this.popover && (e.target as Element).closest('a')) this.hidePopover()
+      })
+    }
+  }
+  customElements.define('bh-sidebar-pane', SidebarPane)
+</script>

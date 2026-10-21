@@ -1,0 +1,20 @@
+---
+import TocList from './TocList.astro'
+
+const { toc } = Astro.locals.starlightRoute
+---
+
+{
+  toc && (
+    <nav data-bh-toc aria-labelledby="starlight__on-this-page" class="flex flex-col gap-2">
+      <p id="starlight__on-this-page" class="text-sm font-medium text-foreground">
+        {Astro.locals.t('tableOfContents.onThisPage')}
+      </p>
+      <TocList items={toc.items} />
+    </nav>
+  )
+}
+
+<script>
+  import '@/lib/toc'
+</script>
