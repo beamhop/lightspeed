@@ -1,13 +1,13 @@
 name: Release
 
 # Two release trains:
-# - npm packages: on every push to main, changesets/action opens a "release packages" PR; merging it
-#   publishes changed packages to npm with provenance.
+# - npm packages: disabled for now. To enable, set the repository variable NPM_PUBLISH=true, add the
+#   NPM_TOKEN secret and add `branches: [main]` back under `push`; changesets/action then opens a
+#   "release packages" PR and merging it publishes changed packages to npm with provenance.
 # - relay: pushing a tag `relay-vX.Y.Z` builds compiled relay binaries and the Docker image.
 
 on:
   push:
-    branches: [main]
     tags: ['relay-v*']
   workflow_dispatch:
 
@@ -17,7 +17,7 @@ permissions:
 jobs:
   npm:
     name: Changesets (npm)
-    if: github.ref == 'refs/heads/main'
+    if: vars.NPM_PUBLISH == 'true' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
