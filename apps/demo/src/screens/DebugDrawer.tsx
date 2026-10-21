@@ -20,10 +20,11 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
-import { type DemoConfig, normalizeRelayUrl } from '../config'
+import type { DemoConfig } from '../config'
 import { formatBytes, shortId, usePeers, useTelemetry } from '../hooks'
 import type { DemoRoom, PathKind } from '../p2p'
 import { RelayList } from './Lobby'
+import { resolveTransport, TransportPicker, useTransportDraft } from './Transport'
 
 const PATH_COLOR: Partial<Record<PathKind, string>> = {
   direct: 'text-primary',
@@ -37,7 +38,7 @@ export function DebugDrawer(props: {
   onOpenChange: (open: boolean) => void
   room: DemoRoom
   cfg: DemoConfig
-  onOwnRelay: (own: DemoConfig['ownRelay']) => void
+  onTransport: (patch: Pick<DemoConfig, 'transport' | 'ownRelay'>) => void
 }) {
   return (
     <Sheet open={props.open} onOpenChange={props.onOpenChange}>
@@ -72,14 +73,12 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 function DebugBody(props: {
   room: DemoRoom
   cfg: DemoConfig
-  onOwnRelay: (own: DemoConfig['ownRelay']) => void
+  onTransport: (patch: Pick<DemoConfig, 'transport' | 'ownRelay'>) => void
 }) {
   const { room } = props
   const t = useTelemetry(room)
   const peers = usePeers(room)
-  const [url, setUrl] = useState(props.cfg.ownRelay?.url ?? '')
-  const [appId, setAppId] = useState(props.cfg.ownRelay?.appId ?? '')
-  const [apiKey, setApiKey] = useState(props.cfg.ownRelay?.apiKey ?? '')
+  const [draft, setDraft] = useTransportDraft(props.cfg)
   const [formError, setFormError] = useState<string | null>(null)
 
   const nameOf = (id: string) => peers.find((p) => p.id === id)?.name ?? shortId(id)
@@ -144,8 +143,8 @@ function DebugBody(props: {
         {failing && (
           <Alert className="border-warning/40">
             <AlertDescription className="text-warning/90">
-              A peer could not connect directly. On public STUN only, two symmetric NATs cannot
-              reach each other; add your own relay below for TURN and the data relay.
+              A peer could not connect. On public STUN only, two symmetric NATs cannot reach each
+              other; switch to WebRTC TURN or the WebSocket relay below.
             </AlertDescription>
           </Alert>
         )}
@@ -171,54 +170,21 @@ function DebugBody(props: {
 
       <Separator />
 
-      <Section title="Use your own relay">
+      <Section title="Transport">
         <form
           className="grid gap-2.5"
           onSubmit={(e) => {
             e.preventDefault()
-            const norm = normalizeRelayUrl(url)
-            if (!url.trim()) {
-              props.onOwnRelay(undefined)
-              return
-            }
-            if (!norm || !appId.trim()) {
-              setFormError('Enter a relay URL (wss://relay.example) and an app id')
+            const tr = resolveTransport(draft)
+            if (typeof tr === 'string') {
+              setFormError(tr)
               return
             }
             setFormError(null)
-            props.onOwnRelay({
-              url: norm,
-              appId: appId.trim(),
-              ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
-            })
+            props.onTransport(tr)
           }}
         >
-          <Input
-            placeholder="wss://relay.example"
-            value={url}
-            onChange={(e) => setUrl(e.currentTarget.value)}
-            aria-label="Relay URL"
-          />
-          <Input
-            placeholder="app id"
-            value={appId}
-            onChange={(e) => setAppId(e.currentTarget.value)}
-            aria-label="App id"
-          />
-          <Input
-            placeholder="API key for TURN credentials (optional)"
-            value={apiKey}
-            type="password"
-            autoComplete="off"
-            onChange={(e) => setApiKey(e.currentTarget.value)}
-            aria-label="API key"
-          />
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            Adds <code className="font-mono">wss://…/a/&lt;appId&gt;</code> for signaling, mints
-            TURN credentials from{' '}
-            <code className="font-mono">/a/&lt;appId&gt;/turn-credentials</code> and enables the
-            data relay. Leave the URL empty to go back to public relays. Rejoins the room.
-          </p>
+          <TransportPicker value={draft} onChange={setDraft} idPrefix="debug-tr" hideLegend />
           {formError && <p className="text-sm text-destructive">{formError}</p>}
           <Button type="submit" className="justify-self-start">
             Apply and rejoin

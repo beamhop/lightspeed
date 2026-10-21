@@ -12,6 +12,7 @@ function cfg(name: string, roomId: string, password = ''): DemoConfig {
     password,
     name,
     local: true,
+    transport: 'p2p',
     identity: 'anonymous',
     relays: DEFAULT_RELAYS,
     iceServers: DEFAULT_ICE_SERVERS,

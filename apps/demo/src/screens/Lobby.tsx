@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils'
 import { type DemoConfig, parseRoomInput, randomRoomId } from '../config'
 import { Bunny } from '../mascot'
 import type { RelayStatus } from '../p2p'
+import { resolveTransport, TransportPicker, useTransportDraft } from './Transport'
 
 /** Opens a WebSocket to each relay and reports whether it answers; closes right away. */
 function useRelayProbe(relays: string[], enabled: boolean): RelayStatus[] {
@@ -100,11 +101,30 @@ export function Lobby(props: {
   const [password, setPassword] = useState(cfg.password)
   const [local, setLocal] = useState(cfg.local)
   const [identity, setIdentity] = useState(cfg.identity)
+  const [draft, setDraft] = useTransportDraft(cfg)
+  const [formError, setFormError] = useState<string | null>(null)
   const hasNip07 = typeof window !== 'undefined' && 'nostr' in window
   const probe = useRelayProbe(cfg.relays, !local)
 
-  const submit = (roomId: string, pw = password) =>
-    props.onJoin({ ...cfg, name: name.trim() || cfg.name, roomId, password: pw, local, identity })
+  const submit = (roomId: string, pw = password) => {
+    const tr = local
+      ? { transport: cfg.transport, ownRelay: cfg.ownRelay }
+      : resolveTransport(draft)
+    if (typeof tr === 'string') {
+      setFormError(tr)
+      return
+    }
+    setFormError(null)
+    props.onJoin({
+      ...cfg,
+      ...tr,
+      name: name.trim() || cfg.name,
+      roomId,
+      password: pw,
+      local,
+      identity,
+    })
+  }
 
   const parsed = parseRoomInput(roomInput)
 
@@ -201,6 +221,7 @@ export function Lobby(props: {
                   </Label>
                 </RadioGroup>
               </fieldset>
+              {!local && <TransportPicker value={draft} onChange={setDraft} idPrefix="lobby-tr" />}
               <Label htmlFor="local" className="flex items-center gap-3 font-normal">
                 <Checkbox
                   id="local"
@@ -210,9 +231,9 @@ export function Lobby(props: {
                 />
                 Local mode (tabs of this browser only, no network)
               </Label>
-              {props.error && (
+              {(formError ?? props.error) && (
                 <Alert variant="destructive" role="alert">
-                  <AlertDescription>{props.error}</AlertDescription>
+                  <AlertDescription>{formError ?? props.error}</AlertDescription>
                 </Alert>
               )}
             </CardContent>
@@ -251,9 +272,9 @@ export function Lobby(props: {
               <RelayList relays={probe} />
             )}
             <p className="text-xs leading-relaxed text-muted-foreground">
-              ICE: stun.l.google.com:19302 and stun.cloudflare.com:3478. No TURN, so two peers
-              behind symmetric NATs cannot connect here; point the demo at your own relay from the
-              Debug drawer to add TURN and the data relay.
+              ICE: stun.l.google.com:19302 and stun.cloudflare.com:3478. With WebRTC P2P two peers
+              behind symmetric NATs cannot connect; pick WebRTC TURN or the WebSocket relay with
+              your own Beamhop relay to get around that.
             </p>
           </CardContent>
         </Card>

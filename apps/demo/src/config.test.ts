@@ -51,7 +51,43 @@ describe('config', () => {
     expect(parseRoomInput('not a room!')).toBeNull()
     expect(parseRoomInput('https://example.com/no-room')).toBeNull()
   })
+
+  test('transport defaults to p2p and the stored choice applies only to the bare lobby', () => {
+    expect(readConfig('').transport).toBe('p2p')
+    expect(readConfig('', { transport: 'relay' }).transport).toBe('relay')
+    // A shared link without a transport means the sharer used p2p.
+    expect(readConfig('?room=r', { transport: 'relay' }).transport).toBe('p2p')
+    expect(readConfig('?transport=bogus').transport).toBe('p2p')
+  })
+
+  test('room links carry transport, relay and app id but never the API key', () => {
+    const ownRelay = { url: 'wss://relay.example', appId: 'game', apiKey: 'secret' }
+    const link = roomLink('https://demo.example/', {
+      roomId: 'r1',
+      password: '',
+      local: false,
+      transport: 'turn',
+      ownRelay,
+    })
+    expect(link).toBe(
+      'https://demo.example/?room=r1&transport=turn&relay=wss%3A%2F%2Frelay.example&app=game',
+    )
+    const q = new URL(link).search
+    expect(readConfig(q)).toMatchObject({
+      roomId: 'r1',
+      transport: 'turn',
+      ownRelay: { url: 'wss://relay.example', appId: 'game' },
+    })
+    expect(readConfig(q).ownRelay?.apiKey).toBeUndefined()
+    // The joiner's own key for the same relay/app is kept.
+    expect(readConfig(q, { ownRelay }).ownRelay?.apiKey).toBe('secret')
+    expect(roomLink('https://demo.example/', { ...cfgP2p, ownRelay })).toBe(
+      'https://demo.example/?room=r1',
+    )
+  })
 })
+
+const cfgP2p = { roomId: 'r1', password: '', local: false, transport: 'p2p' as const }
 
 describe('transfers', () => {
   test('progress folds into one transfer with a row per peer', () => {
