@@ -1,0 +1,13 @@
+---
+// The page title block and the body share one centred column, so they always line up.
+---
+
+<div class="bh-content-panel py-8 md:py-10">
+  <div class="mx-auto w-full max-w-3xl"><slot /></div>
+</div>
+
+<style>
+  .bh-content-panel + .bh-content-panel {
+    padding-top: 0;
+  }
+</style>

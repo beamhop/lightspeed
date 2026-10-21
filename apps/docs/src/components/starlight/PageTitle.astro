@@ -1,0 +1,11 @@
+---
+// Title and description, as on ui.shadcn.com. The id is Starlight's (skip link and TOC "Overview").
+const { title, description } = Astro.locals.starlightRoute.entry.data
+---
+
+<div class="flex flex-col gap-2">
+  <h1 id="_top" class="scroll-m-20 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+    {title}
+  </h1>
+  {description && <p class="text-base text-balance text-muted-foreground sm:text-lg">{description}</p>}
+</div>

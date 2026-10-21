@@ -1,0 +1,74 @@
+---
+// One level of the sidebar tree. Top-level groups are labelled sections (shadcn SidebarGroup);
+// deeper groups collapse (SidebarMenuSub) with Starlight's restore point for the persisted state.
+import SidebarRestorePoint from '@astrojs/starlight/components/SidebarRestorePoint.astro'
+import { ChevronRight } from 'lucide-react'
+import { cn } from '@/lib/utils'
+
+type Entry = (typeof Astro.locals.starlightRoute.sidebar)[number]
+
+interface Props {
+  sublist: Entry[]
+  level?: number
+}
+
+const { sublist, level = 0 } = Astro.props
+
+const hasCurrent = (e: Entry): boolean =>
+  e.type === 'link' ? e.isCurrent : e.entries.some(hasCurrent)
+
+const item =
+  'flex min-h-8 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm leading-tight text-foreground/80 outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/50'
+const badge =
+  'ml-auto inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground'
+---
+
+<ul class={cn('flex flex-col gap-0.5', level > 1 && 'mt-0.5 ml-3.5 border-l pl-2.5')}>
+  {
+    sublist.map((entry) => {
+      if (entry.type === 'link') {
+        const { class: cls, ...attrs } = entry.attrs
+        return (
+          <li>
+            <a
+              href={entry.href}
+              aria-current={entry.isCurrent ? 'page' : undefined}
+              class={cn(
+                item,
+                entry.isCurrent && 'bg-accent font-medium text-accent-foreground',
+                cls as string | undefined,
+              )}
+              {...attrs}
+            >
+              <span>{entry.label}</span>
+              {entry.badge && <span class={badge}>{entry.badge.text}</span>}
+            </a>
+          </li>
+        )
+      }
+      if (level === 0) {
+        return (
+          <li class="mt-6 first:mt-0">
+            <div class="flex h-8 items-center px-2 text-xs font-medium text-muted-foreground">
+              {entry.label}
+            </div>
+            <Astro.self sublist={entry.entries} level={1} />
+          </li>
+        )
+      }
+      return (
+        <li>
+          <details open={hasCurrent(entry) || !entry.collapsed} class="group/sub">
+            <summary class={cn(item, 'cursor-pointer list-none [&::-webkit-details-marker]:hidden')}>
+              <span>{entry.label}</span>
+              {entry.badge && <span class={badge}>{entry.badge.text}</span>}
+              <ChevronRight className="ml-auto size-4 shrink-0 text-muted-foreground transition-transform group-open/sub:rotate-90" />
+            </summary>
+            <SidebarRestorePoint />
+            <Astro.self sublist={entry.entries} level={level + 1} />
+          </details>
+        </li>
+      )
+    })
+  }
+</ul>

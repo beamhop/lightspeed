@@ -12,6 +12,7 @@
     "test": "bun test scripts"
   },
   "dependencies": {
+    "@astrojs/markdown-satteri": "^0.4.4",
     "@astrojs/react": "^7.1.0",
     "@astrojs/starlight": "^0.42.6",
     "@beamhop/p2p": "workspace:*",

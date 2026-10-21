@@ -1,0 +1,17 @@
+---
+import MobileTableOfContents from 'virtual:starlight/components/MobileTableOfContents'
+import TableOfContents from 'virtual:starlight/components/TableOfContents'
+---
+
+{
+  Astro.locals.starlightRoute.toc && (
+    <>
+      <div class="sticky top-14 z-30 -mx-4 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:mx-0 md:px-0 xl:hidden">
+        <MobileTableOfContents />
+      </div>
+      <div class="sticky top-14 hidden max-h-[calc(100dvh-3.5rem)] overflow-y-auto py-10 [scrollbar-width:none] xl:block">
+        <TableOfContents />
+      </div>
+    </>
+  )
+}

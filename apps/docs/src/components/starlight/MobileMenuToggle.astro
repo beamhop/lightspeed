@@ -1,0 +1,15 @@
+---
+// Opens the sidebar sheet on phones (see PageFrame.astro).
+import { Menu } from 'lucide-react'
+import { buttonVariants } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+---
+
+<button
+  type="button"
+  popovertarget="starlight__sidebar"
+  class={cn(buttonVariants({ variant: 'ghost', size: 'icon' }), '-ml-2 md:hidden')}
+>
+  <Menu />
+  <span class="sr-only">{Astro.locals.t('menuButton.accessibleLabel')}</span>
+</button>
