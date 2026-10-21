@@ -1,67 +1,106 @@
-/** @jsxImportSource preact */
-// Admin-local UI primitives (kept here on purpose; @beamhop/ui only provides tokens to this package).
+// Admin building blocks composed from the shadcn/ui components in ./ui. Screens import from here so
+// spacing, table gutters and field layout stay identical everywhere.
 
+import { Check, Copy, Info, Loader2 } from 'lucide-react'
 import {
-  type AnchorHTMLAttributes,
-  type ButtonHTMLAttributes,
-  type ComponentChildren,
+  Children,
+  type ComponentProps,
+  cloneElement,
+  createContext,
   Fragment,
-  type InputHTMLAttributes,
-  type TextareaHTMLAttributes,
-} from 'preact'
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hooks'
+  isValidElement,
+  type ReactElement,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useId,
+  useState,
+} from 'react'
+import { cn } from '@/lib/utils'
 import { href } from '../router'
+import { Badge as UiBadge } from './ui/badge'
+import { Button as UiButton } from './ui/button'
+import {
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Card as UiCard,
+} from './ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog'
+import { Input as UiInput } from './ui/input'
+import { Label } from './ui/label'
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
+import { Progress } from './ui/progress'
+import {
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Select as UiSelect,
+} from './ui/select'
+import { Switch } from './ui/switch'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table'
+import { TabsList, TabsTrigger, Tabs as UiTabs } from './ui/tabs'
+import { Textarea } from './ui/textarea'
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost'
 
-const VARIANTS: Record<Variant, string> = {
-  primary: 'bg-teal text-midnight hover:brightness-110 font-semibold',
-  secondary: 'bg-raised text-ink border border-line hover:border-teal/60',
-  danger: 'bg-danger/15 text-danger border border-danger/40 hover:bg-danger/25',
-  ghost: 'text-muted hover:text-ink hover:bg-raised',
-}
+const VARIANT = {
+  primary: 'default',
+  secondary: 'outline',
+  danger: 'destructive',
+  ghost: 'ghost',
+} as const
 
 export function Button({
   variant = 'secondary',
   size = 'md',
-  class: cls = '',
   loading,
   children,
+  disabled,
   ...rest
-}: Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'class'> & {
-  class?: string
+}: Omit<ComponentProps<typeof UiButton>, 'variant' | 'size'> & {
   variant?: Variant
-  size?: 'sm' | 'md'
+  size?: 'sm' | 'md' | 'icon'
   loading?: boolean
 }) {
-  const sz = size === 'sm' ? 'px-2.5 py-1.5 text-xs' : 'px-3.5 py-2 text-sm'
   return (
-    <button
+    <UiButton
       type="button"
-      {...(rest as Record<string, unknown>)}
-      disabled={rest.disabled || loading}
-      class={`inline-flex items-center justify-center gap-1.5 rounded-md transition disabled:opacity-50 disabled:cursor-not-allowed min-h-9 ${sz} ${VARIANTS[variant]} ${cls}`}
+      variant={VARIANT[variant]}
+      size={size === 'md' ? 'default' : size === 'icon' ? 'icon-sm' : 'sm'}
+      disabled={disabled || loading}
+      {...rest}
     >
-      {loading && (
-        <span class="inline-block size-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
-      )}
+      {loading && <Loader2 className="animate-spin" />}
       {children}
-    </button>
+    </UiButton>
   )
 }
 
 export function Link({
   to,
-  class: cls = '',
   children,
   ...rest
-}: Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'class'> & { to: string; class?: string }) {
+}: Omit<ComponentProps<'a'>, 'href'> & { to: string }) {
   return (
-    <a href={href(to)} data-nav="" class={cls} {...(rest as Record<string, unknown>)}>
+    <a href={href(to)} data-nav="" {...rest}>
       {children}
     </a>
   )
 }
+
+/** Whether the nearest Card pads its content (null outside a card). Tables bleed to the edges. */
+const CardPad = createContext<boolean | null>(null)
 
 export function Card({
   title,
@@ -69,42 +108,58 @@ export function Card({
   help,
   actions,
   children,
-  class: cls = '',
+  className,
   pad = true,
 }: {
-  title?: ComponentChildren
+  title?: ReactNode
   /** One or two sentences under the title: what this section is and when to use it. */
-  description?: ComponentChildren
+  description?: ReactNode
   /** Longer explanation behind an (i) button next to the title. */
-  help?: ComponentChildren
-  actions?: ComponentChildren
-  children?: ComponentChildren
-  class?: string
+  help?: ReactNode
+  actions?: ReactNode
+  children?: ReactNode
+  className?: string
+  /** false: content runs edge to edge (tables still line up with the header). */
   pad?: boolean
 }) {
+  const header = title || description || actions
   return (
-    <section class={`rounded-lg bg-surface border border-line ${cls}`}>
-      {(title || actions) && (
-        <header class="flex items-center justify-between gap-2 px-4 pt-3 pb-2 flex-wrap">
-          <h2 class="text-sm font-semibold text-ink inline-flex items-center gap-1.5">
-            {title}
-            {help && (
-              <InfoTip label={typeof title === 'string' ? title : 'this section'}>{help}</InfoTip>
-            )}
-          </h2>
-          {actions && <div class="flex gap-2 flex-wrap">{actions}</div>}
-        </header>
+    <UiCard className={cn('min-w-0 gap-5', className)}>
+      {header && (
+        <CardHeader className="max-sm:grid-cols-1!">
+          {title && (
+            <CardTitle className="flex items-center gap-1.5">
+              {title}
+              {help && (
+                <InfoTip label={typeof title === 'string' ? title : 'this section'}>{help}</InfoTip>
+              )}
+            </CardTitle>
+          )}
+          {description && (
+            <CardDescription className="max-w-3xl leading-relaxed">{description}</CardDescription>
+          )}
+          {actions && (
+            <CardAction className="col-start-1 row-span-1 row-start-auto flex flex-wrap items-center gap-2 justify-self-start sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:justify-self-end">
+              {actions}
+            </CardAction>
+          )}
+        </CardHeader>
       )}
-      {description && (
-        <p
-          class={`px-4 pb-3 text-xs text-muted leading-relaxed max-w-3xl ${title || actions ? '-mt-1' : 'pt-3'}`}
-        >
-          {description}
-        </p>
-      )}
-      <div class={pad ? 'px-4 pb-4' : ''}>{children}</div>
-    </section>
+      <CardPad.Provider value={pad}>
+        <CardContent className={cn('min-w-0', !pad && 'px-0')}>{children}</CardContent>
+      </CardPad.Provider>
+    </UiCard>
   )
+}
+
+type Tone = 'teal' | 'violet' | 'warn' | 'danger' | 'ok'
+
+const DOT: Record<Tone, string> = {
+  teal: 'bg-primary',
+  violet: 'bg-violet',
+  warn: 'bg-warning',
+  danger: 'bg-destructive',
+  ok: 'bg-success',
 }
 
 export function Stat({
@@ -115,55 +170,49 @@ export function Stat({
   tone = 'teal',
 }: {
   label: string
-  value: ComponentChildren
-  hint?: ComponentChildren
+  value: ReactNode
+  hint?: ReactNode
   /** What the number means and when to worry, behind an (i) button. */
-  help?: ComponentChildren
-  tone?: 'teal' | 'violet' | 'warn' | 'danger' | 'ok'
+  help?: ReactNode
+  tone?: Tone
 }) {
-  const tones = {
-    teal: 'bg-teal',
-    violet: 'bg-violet',
-    warn: 'bg-warn',
-    danger: 'bg-danger',
-    ok: 'bg-ok',
-  }
   return (
-    <div class="rounded-lg bg-surface border border-line p-3 min-w-0">
-      <div class="flex items-center gap-1.5 text-xs text-muted">
-        <span class={`size-1.5 rounded-full ${tones[tone]}`} />
-        <span class="truncate">{label}</span>
+    <UiCard className="min-w-0 gap-1 px-4 py-4">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <span className={cn('size-1.5 shrink-0 rounded-full', DOT[tone])} />
+        <span className="truncate">{label}</span>
         {help && <InfoTip label={label}>{help}</InfoTip>}
       </div>
-      <div class="mt-1 text-xl font-semibold tabular-nums text-ink truncate" data-stat={label}>
+      <div className="truncate text-2xl font-semibold tabular-nums" data-stat={label}>
         {value}
       </div>
-      {hint && <div class="text-xs text-muted mt-0.5 truncate">{hint}</div>}
-    </div>
+      {hint && <div className="truncate text-xs text-muted-foreground">{hint}</div>}
+    </UiCard>
   )
+}
+
+const BADGE: Record<'muted' | Tone, string> = {
+  muted: 'bg-muted text-muted-foreground',
+  teal: 'bg-primary/15 text-primary',
+  violet: 'bg-violet/15 text-violet',
+  warn: 'bg-warning/15 text-warning',
+  danger: 'bg-destructive/15 text-destructive',
+  ok: 'bg-success/15 text-success',
 }
 
 export function Badge({
   tone = 'muted',
   children,
+  className,
 }: {
-  tone?: 'muted' | 'teal' | 'violet' | 'warn' | 'danger' | 'ok'
-  children: ComponentChildren
+  tone?: 'muted' | Tone
+  children: ReactNode
+  className?: string
 }) {
-  const t = {
-    muted: 'bg-raised text-muted',
-    teal: 'bg-teal/15 text-teal',
-    violet: 'bg-violet/15 text-violet',
-    warn: 'bg-warn/15 text-warn',
-    danger: 'bg-danger/15 text-danger',
-    ok: 'bg-ok/15 text-ok',
-  }[tone]
   return (
-    <span
-      class={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${t}`}
-    >
+    <UiBadge variant="secondary" className={cn(BADGE[tone], className)}>
       {children}
-    </span>
+    </UiBadge>
   )
 }
 
@@ -173,91 +222,111 @@ export function Field({
   help,
   error,
   children,
+  className,
 }: {
   label: string
   /** Short always-visible line under the input (format, units, defaults). */
-  hint?: ComponentChildren
+  hint?: ReactNode
   /** What the setting does and why you would change it, behind an (i) button. */
-  help?: ComponentChildren
+  help?: ReactNode
   error?: string | null
-  children: ComponentChildren
+  children: ReactNode
+  className?: string
 }) {
+  const id = useId()
+  // Point the label at the control: the single child element gets the id unless it has one.
+  const only = Children.count(children) === 1 && isValidElement(children) ? children : null
+  const controlId = (only?.props as { id?: string } | undefined)?.id ?? id
+  const control = only
+    ? cloneElement(only as ReactElement<{ id?: string; 'aria-invalid'?: boolean }>, {
+        id: controlId,
+        ...(error ? { 'aria-invalid': true } : {}),
+      })
+    : children
   return (
-    <label class="block">
-      <span class="flex items-center gap-1 text-xs font-medium text-muted mb-1">
-        {label}
+    <div className={cn('grid min-w-0 content-start gap-2', className)}>
+      <div className="flex items-center gap-1.5">
+        <Label htmlFor={only ? controlId : undefined}>{label}</Label>
         {help && <InfoTip label={label}>{help}</InfoTip>}
-      </span>
-      {children}
-      {hint && !error && <span class="block text-[11px] text-muted mt-1">{hint}</span>}
-      {error && <span class="block text-[11px] text-danger mt-1">{error}</span>}
-    </label>
+      </div>
+      {control}
+      {hint && !error && <p className="text-xs text-muted-foreground">{hint}</p>}
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
   )
 }
 
-const inputCls =
-  'w-full rounded-md bg-midnight border border-line px-3 py-2 text-sm text-ink placeholder:text-muted/60 focus:border-teal focus:outline-none min-h-10'
-
 export function Input({
-  class: cls = '',
   onValue,
+  onChange,
   ...rest
-}: Omit<InputHTMLAttributes<HTMLInputElement>, 'class'> & {
-  class?: string
-  onValue?: (v: string) => void
-}) {
+}: ComponentProps<'input'> & { onValue?: (v: string) => void }) {
   return (
-    <input
-      {...(rest as Record<string, unknown>)}
-      class={`${inputCls} ${cls}`}
-      onInput={(e) => {
-        onValue?.((e.currentTarget as HTMLInputElement).value)
-        rest.onInput?.(e as never)
+    <UiInput
+      {...rest}
+      onChange={(e) => {
+        onValue?.(e.currentTarget.value)
+        onChange?.(e)
       }}
     />
   )
 }
 
 export function TextArea({
-  class: cls = '',
   onValue,
+  onChange,
+  className,
   ...rest
-}: Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'class'> & {
-  class?: string
-  onValue?: (v: string) => void
-}) {
+}: ComponentProps<'textarea'> & { onValue?: (v: string) => void }) {
   return (
-    <textarea
-      {...(rest as Record<string, unknown>)}
-      class={`${inputCls} font-mono text-xs ${cls}`}
-      onInput={(e) => onValue?.((e.currentTarget as HTMLTextAreaElement).value)}
+    <Textarea
+      {...rest}
+      className={cn('font-mono text-xs md:text-xs', className)}
+      onChange={(e) => {
+        onValue?.(e.currentTarget.value)
+        onChange?.(e)
+      }}
     />
   )
 }
+
+/** Radix Select forbids empty item values, so '' is mapped to a sentinel. */
+const EMPTY = '\u0000empty'
 
 export function Select<T extends string>({
   value,
   options,
   onValue,
-  class: cls = '',
+  className,
+  id,
+  disabled,
+  'aria-label': ariaLabel,
 }: {
   value: T
   options: { value: T; label: string }[]
   onValue: (v: T) => void
-  class?: string
+  className?: string
+  id?: string
+  disabled?: boolean
+  'aria-label'?: string
 }) {
   return (
-    <select
-      value={value}
-      class={`${inputCls} ${cls}`}
-      onChange={(e) => onValue((e.currentTarget as HTMLSelectElement).value as T)}
+    <UiSelect
+      value={value === '' ? EMPTY : value}
+      onValueChange={(v) => onValue((v === EMPTY ? '' : v) as T)}
+      disabled={disabled}
     >
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
+      <SelectTrigger id={id} aria-label={ariaLabel} className={cn('w-full', className)}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((o) => (
+          <SelectItem key={o.value} value={o.value === '' ? EMPTY : o.value}>
+            {o.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </UiSelect>
   )
 }
 
@@ -267,39 +336,26 @@ export function Toggle({
   label,
   hint,
   help,
+  disabled,
 }: {
   checked: boolean
   onChange: (v: boolean) => void
   label: string
-  hint?: ComponentChildren
-  help?: ComponentChildren
+  hint?: ReactNode
+  help?: ReactNode
+  disabled?: boolean
 }) {
-  const sw = (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      class="flex items-center gap-2 text-sm text-ink min-h-9"
-    >
-      <span
-        class={`relative inline-block h-5 w-9 rounded-full transition ${checked ? 'bg-teal' : 'bg-line'}`}
-      >
-        <span
-          class={`absolute top-0.5 size-4 rounded-full bg-midnight transition-all ${checked ? 'left-4.5' : 'left-0.5'}`}
-        />
-      </span>
-      {label}
-    </button>
-  )
-  if (!hint && !help) return sw
+  const id = useId()
   return (
-    <div>
-      <div class="flex items-center gap-1.5">
-        {sw}
+    <div className="grid content-start gap-1.5">
+      <div className="flex min-h-9 items-center gap-2">
+        <Switch id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} />
+        <Label htmlFor={id} className="font-normal">
+          {label}
+        </Label>
         {help && <InfoTip label={label}>{help}</InfoTip>}
       </div>
-      {hint && <p class="text-[11px] text-muted -mt-1">{hint}</p>}
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   )
 }
@@ -308,60 +364,63 @@ export function Tabs<T extends string>({
   value,
   tabs,
   onChange,
+  stretch,
 }: {
+  /** Fill the available width (e.g. a small card) instead of sizing to the labels. */
+  stretch?: boolean
   value: T
   /** `description` explains the active tab under the tab bar. */
-  tabs: { id: T; label: string; description?: ComponentChildren }[]
+  tabs: { id: T; label: string; description?: ReactNode }[]
   onChange: (t: T) => void
 }) {
   const active = tabs.find((t) => t.id === value)
   return (
-    <>
-      <div class="-mx-4 px-4 overflow-x-auto [scrollbar-width:none]" role="tablist">
-        <div class="flex gap-1 border-b border-line min-w-max">
+    <UiTabs value={value} onValueChange={(v) => onChange(v as T)} className="min-w-0 gap-3">
+      <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] md:mx-0 md:px-0">
+        <TabsList className={cn(stretch && 'w-full')}>
           {tabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={value === t.id}
-              onClick={() => onChange(t.id)}
-              class={`px-3 py-2 text-sm whitespace-nowrap border-b-2 -mb-px transition ${value === t.id ? 'border-teal text-ink font-medium' : 'border-transparent text-muted hover:text-ink'}`}
-            >
+            <TabsTrigger key={t.id} value={t.id} className="px-3">
               {t.label}
-            </button>
+            </TabsTrigger>
           ))}
-        </div>
+        </TabsList>
       </div>
       {active?.description && (
-        <p class="pt-3 text-sm text-muted leading-relaxed max-w-3xl" data-tab-description="">
+        <p
+          className="max-w-3xl text-sm leading-relaxed text-muted-foreground"
+          data-tab-description=""
+        >
           {active.description}
         </p>
       )}
-    </>
+    </UiTabs>
   )
 }
 
 export function PageHeader({
+  eyebrow,
   title,
   subtitle,
   actions,
   intro,
 }: {
+  /** Small line above the title, e.g. a breadcrumb. */
+  eyebrow?: ReactNode
   title: string
-  subtitle?: ComponentChildren
-  actions?: ComponentChildren
+  subtitle?: ReactNode
+  actions?: ReactNode
   /** "About this page" panel: what the screen is, why it is useful and how to use it. */
   intro?: PageHelp
 }) {
   return (
     <>
-      <div class="flex items-start justify-between gap-3 mb-4 flex-wrap">
-        <div class="min-w-0">
-          <h1 class="text-xl font-semibold text-ink">{title}</h1>
-          {subtitle && <p class="text-sm text-muted mt-0.5">{subtitle}</p>}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1">
+          {eyebrow && <div className="text-xs text-muted-foreground">{eyebrow}</div>}
+          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+          {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
         </div>
-        {actions && <div class="flex gap-2 flex-wrap items-center">{actions}</div>}
+        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
       {intro && <PageIntro help={intro} />}
     </>
@@ -371,9 +430,9 @@ export function PageHeader({
 export interface PageHelp {
   /** Stable key for remembering the collapsed state. */
   id: string
-  what: ComponentChildren
-  why: ComponentChildren
-  how: ComponentChildren[]
+  what: ReactNode
+  why: ReactNode
+  how: ReactNode[]
 }
 
 const INTRO_KEY = 'bh-admin-intro:'
@@ -398,8 +457,8 @@ export function PageIntro({ help }: { help: PageHelp }) {
     } catch {}
   }
   return (
-    <section
-      class="mb-4 rounded-lg border border-teal/25 bg-teal/5"
+    <UiCard
+      className="gap-0 border-primary/25 bg-primary/5 py-0 shadow-none"
       aria-label="About this page"
       data-intro={help.id}
     >
@@ -407,150 +466,98 @@ export function PageIntro({ help }: { help: PageHelp }) {
         type="button"
         onClick={toggle}
         aria-expanded={!hidden}
-        class="w-full flex items-center justify-between gap-2 px-4 py-2.5 text-left"
+        className="flex w-full items-center justify-between gap-2 rounded-xl px-6 py-3 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
       >
-        <span class="inline-flex items-center gap-2 text-sm font-medium text-ink">
-          <span class="inline-flex size-5 items-center justify-center rounded-full bg-teal/15 text-teal text-xs font-semibold">
-            ?
-          </span>
+        <span className="inline-flex items-center gap-2 text-sm font-medium">
+          <Info className="size-4 text-primary" />
           About this page
         </span>
-        <span class="text-xs text-muted">{hidden ? 'Show' : 'Hide'}</span>
+        <span className="text-xs text-muted-foreground">{hidden ? 'Show' : 'Hide'}</span>
       </button>
       {!hidden && (
-        <div class="grid gap-4 px-4 pb-4 md:grid-cols-3 text-sm">
-          <div>
-            <h3 class="text-xs font-semibold uppercase tracking-wide text-teal mb-1">What it is</h3>
-            <p class="text-muted leading-relaxed">{help.what}</p>
-          </div>
-          <div>
-            <h3 class="text-xs font-semibold uppercase tracking-wide text-teal mb-1">
-              Why it matters
-            </h3>
-            <p class="text-muted leading-relaxed">{help.why}</p>
-          </div>
-          <div>
-            <h3 class="text-xs font-semibold uppercase tracking-wide text-teal mb-1">
-              How to use it
-            </h3>
-            <ol class="list-decimal pl-4 space-y-1 text-muted leading-relaxed">
+        <div className="grid gap-6 px-6 pb-5 text-sm md:grid-cols-3">
+          <IntroColumn title="What it is">
+            <p>{help.what}</p>
+          </IntroColumn>
+          <IntroColumn title="Why it matters">
+            <p>{help.why}</p>
+          </IntroColumn>
+          <IntroColumn title="How to use it">
+            <ol className="list-decimal space-y-1 pl-4">
               {help.how.map((h, i) => (
                 <li key={i}>{h}</li>
               ))}
             </ol>
-          </div>
+          </IntroColumn>
         </div>
       )}
-    </section>
+    </UiCard>
+  )
+}
+
+function IntroColumn({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <h3 className="text-xs font-semibold tracking-wide text-primary uppercase">{title}</h3>
+      <div className="leading-relaxed text-muted-foreground">{children}</div>
+    </div>
   )
 }
 
 /**
- * Small (i) button that explains the thing next to it. Opens on hover, focus or tap; the panel is
- * fixed-positioned so it is never clipped by truncating or scrolling parents. It is a span (not a
- * button) so it can live inside a <label> without stealing the label's click.
+ * Small (i) button that explains the thing next to it. Opens on hover, focus or tap. Clicks stop
+ * here so a tip inside a clickable row or next to a field doesn't trigger it.
  */
-export function InfoTip({ children, label }: { children: ComponentChildren; label: string }) {
+export function InfoTip({ children, label }: { children: ReactNode; label: string }) {
   const [pinned, setPinned] = useState(false)
   const [hover, setHover] = useState(false)
-  const [pos, setPos] = useState<{ left: number; width: number; top?: number; bottom?: number }>()
-  const trigger = useRef<HTMLSpanElement>(null)
-  const panel = useRef<HTMLSpanElement>(null)
-  const id = useId()
   const open = pinned || hover
-
-  useLayoutEffect(() => {
-    if (!open || !trigger.current) return
-    const r = trigger.current.getBoundingClientRect()
-    const vw = window.innerWidth
-    const vh = window.innerHeight
-    const width = Math.min(300, vw - 16)
-    const left = Math.max(8, Math.min(r.left + r.width / 2 - width / 2, vw - width - 8))
-    setPos(
-      r.top > vh * 0.6
-        ? { left, width, bottom: vh - r.top + 6 }
-        : { left, width, top: r.bottom + 6 },
-    )
-  }, [open])
-
-  useEffect(() => {
-    if (!open) return
-    const close = () => {
-      setPinned(false)
-      setHover(false)
-    }
-    const onDown = (e: PointerEvent) => {
-      const t = e.target as Node
-      if (!trigger.current?.contains(t) && !panel.current?.contains(t)) close()
-    }
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close()
-    document.addEventListener('pointerdown', onDown)
-    document.addEventListener('keydown', onKey)
-    window.addEventListener('scroll', close, true)
-    return () => {
-      document.removeEventListener('pointerdown', onDown)
-      document.removeEventListener('keydown', onKey)
-      window.removeEventListener('scroll', close, true)
-    }
-  }, [open])
-
-  const toggle = (e: Event) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setPinned(!pinned)
-  }
   return (
-    <span class="relative inline-flex shrink-0 normal-case tracking-normal font-normal">
-      <span
-        ref={trigger}
-        role="button"
-        tabIndex={0}
+    <Popover
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) {
+          setPinned(false)
+          setHover(false)
+        }
+      }}
+    >
+      <PopoverTrigger
+        type="button"
         aria-label={`What is ${label}?`}
-        aria-expanded={open}
-        aria-describedby={open ? id : undefined}
         data-infotip=""
-        onClick={toggle}
-        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && toggle(e)}
+        onClick={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setPinned(!pinned)
+        }}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
-        class={`inline-flex size-4 cursor-help items-center justify-center rounded-full border text-[10px] font-semibold leading-none transition ${open ? 'border-teal text-teal' : 'border-line text-muted hover:border-teal/60 hover:text-teal'}`}
+        className={cn(
+          'inline-flex size-4 shrink-0 cursor-help items-center justify-center rounded-full text-muted-foreground transition-colors outline-none hover:text-primary focus-visible:ring-[3px] focus-visible:ring-ring/50',
+          open && 'text-primary',
+        )}
       >
-        i
-      </span>
-      {open && pos && (
-        <span
-          ref={panel}
-          id={id}
-          role="tooltip"
-          onClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-          }}
-          onMouseEnter={() => setHover(true)}
-          onMouseLeave={() => setHover(false)}
-          style={{
-            left: `${pos.left}px`,
-            width: `${pos.width}px`,
-            top: pos.top === undefined ? undefined : `${pos.top}px`,
-            bottom: pos.bottom === undefined ? undefined : `${pos.bottom}px`,
-          }}
-          class="fixed z-[60] block rounded-md border border-line bg-raised px-3 py-2 text-xs font-normal leading-relaxed text-ink shadow-xl whitespace-normal text-left"
-        >
-          {children}
-        </span>
-      )}
-    </span>
+        <Info className="size-3.5" />
+      </PopoverTrigger>
+      <PopoverContent
+        role="tooltip"
+        side="top"
+        collisionPadding={8}
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onClick={(e) => e.stopPropagation()}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        className="w-auto max-w-[300px] px-3 py-2 text-xs leading-relaxed font-normal tracking-normal normal-case"
+      >
+        {children}
+      </PopoverContent>
+    </Popover>
   )
 }
 
-export function Mono({
-  children,
-  class: cls = '',
-}: {
-  children: ComponentChildren
-  class?: string
-}) {
-  return <span class={`font-mono text-xs ${cls}`}>{children}</span>
+export function Mono({ children, className }: { children: ReactNode; className?: string }) {
+  return <span className={cn('font-mono text-xs', className)}>{children}</span>
 }
 
 export function CopyButton({ value, label = 'Copy' }: { value: string; label?: string }) {
@@ -571,6 +578,7 @@ export function CopyButton({ value, label = 'Copy' }: { value: string; label?: s
         } catch {}
       }}
     >
+      {done ? <Check /> : <Copy />}
       {done ? 'Copied' : label}
     </Button>
   )
@@ -580,13 +588,18 @@ export function CopyButton({ value, label = 'Copy' }: { value: string; label?: s
 export interface Column<T> {
   key: string
   label: string
-  render: (row: T) => ComponentChildren
+  render: (row: T) => ReactNode
   /** Explains the column, behind an (i) button in the header. */
-  help?: ComponentChildren
-  class?: string
+  help?: ReactNode
+  /** Extra classes for the header and cells (e.g. 'text-right', 'whitespace-normal'). */
+  className?: string
   /** Hide in the phone card layout. */
   hideOnMobile?: boolean
 }
+
+// Inside a card the table runs edge to edge and its first/last columns line up with the card's
+// 24px gutter, so headers, rows and the card title share one left edge.
+const EDGE = '[&_tr>*:first-child]:pl-6 [&_tr>*:last-child]:pr-6'
 
 export function DataTable<T>({
   rows,
@@ -598,75 +611,82 @@ export function DataTable<T>({
   rows: T[]
   columns: Column<T>[]
   rowKey: (r: T) => string
-  actions?: (r: T) => ComponentChildren
+  actions?: (r: T) => ReactNode
   onRowClick?: (r: T) => void
 }) {
+  const pad = useContext(CardPad)
   return (
     <>
-      <div class="hidden md:block overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="text-left text-xs text-muted border-b border-line">
+      <div className={cn('hidden md:block', pad === true && '-mx-6', pad !== null && EDGE)}>
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
               {columns.map((c) => (
-                <th key={c.key} class={`py-2 px-2 font-medium ${c.class ?? ''}`}>
-                  <span class="inline-flex items-center gap-1">
+                <TableHead key={c.key} className={cn('text-muted-foreground', c.className)}>
+                  <span className="inline-flex items-center gap-1">
                     {c.label}
                     {c.help && <InfoTip label={c.label}>{c.help}</InfoTip>}
                   </span>
-                </th>
+                </TableHead>
               ))}
-              {actions && <th class="py-2 px-2" />}
-            </tr>
-          </thead>
-          <tbody>
+              {actions && (
+                <TableHead className="text-right">
+                  <span className="sr-only">Actions</span>
+                </TableHead>
+              )}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {rows.map((r) => (
-              <tr
+              <TableRow
                 key={rowKey(r)}
-                class={`border-b border-line/50 last:border-0 ${onRowClick ? 'cursor-pointer hover:bg-raised/60' : ''}`}
+                className={cn(onRowClick && 'cursor-pointer')}
                 onClick={onRowClick ? () => onRowClick(r) : undefined}
               >
                 {columns.map((c) => (
-                  <td key={c.key} class={`py-2 px-2 align-middle ${c.class ?? ''}`}>
+                  <TableCell key={c.key} className={c.className}>
                     {c.render(r)}
-                  </td>
+                  </TableCell>
                 ))}
                 {actions && (
-                  <td
-                    class="py-2 px-2 text-right whitespace-nowrap"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {actions(r)}
-                  </td>
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex justify-end gap-2">{actions(r)}</div>
+                  </TableCell>
                 )}
-              </tr>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
-      <ul class="md:hidden flex flex-col gap-2">
+      <ul className={cn('flex flex-col gap-2 md:hidden', pad === false && 'px-6')}>
         {rows.map((r) => (
           <li
             key={rowKey(r)}
-            class={`rounded-md border border-line bg-midnight/40 p-3 ${onRowClick ? 'active:bg-raised' : ''}`}
+            className={cn(
+              'rounded-lg border bg-background/40 p-3',
+              onRowClick && 'cursor-pointer active:bg-muted',
+            )}
             onClick={onRowClick ? () => onRowClick(r) : undefined}
+            onKeyDown={undefined}
           >
-            <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-sm">
               {columns
                 .filter((c) => !c.hideOnMobile)
                 .map((c) => (
                   <Fragment key={c.key}>
-                    <dt class="text-xs text-muted self-center inline-flex items-center gap-1">
+                    <dt className="inline-flex items-center gap-1 self-center text-xs text-muted-foreground">
                       {c.label}
                       {c.help && <InfoTip label={c.label}>{c.help}</InfoTip>}
                     </dt>
-                    <dd class="min-w-0 truncate text-right">{c.render(r)}</dd>
+                    <dd className="min-w-0 truncate text-right">{c.render(r)}</dd>
                   </Fragment>
                 ))}
             </dl>
             {actions && (
               <div
-                class="flex justify-end gap-2 mt-2 pt-2 border-t border-line/60"
+                className="mt-3 flex justify-end gap-2 border-t pt-3"
                 onClick={(e) => e.stopPropagation()}
+                onKeyDown={undefined}
               >
                 {actions(r)}
               </div>
@@ -691,61 +711,48 @@ export function Modal({
   onClose: () => void
   title: string
   /** What submitting this dialog will do. */
-  description?: ComponentChildren
-  children: ComponentChildren
-  footer?: ComponentChildren
+  description?: ReactNode
+  children: ReactNode
+  footer?: ReactNode
   tone?: 'danger' | 'secret'
 }) {
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [open, onClose])
-  if (!open) return null
-  const border =
-    tone === 'danger' ? 'border-danger/50' : tone === 'secret' ? 'border-violet/60' : 'border-line'
   return (
-    <div
-      class="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
-    >
-      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div
-        class={`relative w-full sm:max-w-lg max-h-[90dvh] overflow-y-auto rounded-t-2xl sm:rounded-lg bg-surface border ${border} shadow-2xl pb-safe`}
-      >
-        <div class="px-5 pt-5 pb-2">
-          <h2 class="text-lg font-semibold text-ink">{title}</h2>
-          {description && <p class="mt-1 text-sm text-muted leading-relaxed">{description}</p>}
-        </div>
-        <div class="px-5 pb-4 text-sm text-ink">{children}</div>
-        {footer && (
-          <div class="px-5 pb-5 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
-            {footer}
-          </div>
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent
+        aria-label={title}
+        className={cn(
+          'max-h-[90dvh] overflow-y-auto',
+          tone === 'danger' && 'border-destructive/50',
+          tone === 'secret' && 'border-violet/60',
         )}
-      </div>
-    </div>
+      >
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          {description ? (
+            <DialogDescription className="leading-relaxed">{description}</DialogDescription>
+          ) : (
+            <DialogDescription className="sr-only">{title}</DialogDescription>
+          )}
+        </DialogHeader>
+        <div className="min-w-0 text-sm">{children}</div>
+        {footer && <DialogFooter>{footer}</DialogFooter>}
+      </DialogContent>
+    </Dialog>
   )
 }
 
 export function ProgressBar({ value, tone }: { value: number; tone?: 'teal' | 'warn' | 'danger' }) {
   const t = tone ?? (value > 90 ? 'danger' : value > 75 ? 'warn' : 'teal')
-  const c = { teal: 'bg-teal', warn: 'bg-warn', danger: 'bg-danger' }[t]
+  const bar = {
+    teal: '*:data-[slot=progress-indicator]:bg-primary',
+    warn: '*:data-[slot=progress-indicator]:bg-warning',
+    danger: '*:data-[slot=progress-indicator]:bg-destructive',
+  }[t]
   return (
-    <div
-      class="h-1.5 w-full rounded-full bg-raised overflow-hidden"
-      role="progressbar"
+    <Progress
+      value={Math.max(0, Math.min(100, value))}
       aria-valuenow={Math.round(value)}
-      aria-valuemin={0}
-      aria-valuemax={100}
-    >
-      <div
-        class={`h-full ${c} transition-all`}
-        style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
-      />
-    </div>
+      className={cn('h-1.5 bg-muted', bar)}
+    />
   )
 }

@@ -1,19 +1,41 @@
 // DOM tests with happy-dom. Globals are registered only for this file and removed afterwards.
+// React DOM and Radix check for a DOM when they load, so they are imported after registering.
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { GlobalRegistrator } from '@happy-dom/global-registrator'
-import { h, render } from 'preact'
+import type { ReactNode } from 'react'
+import type { Root } from 'react-dom/client'
 import { PAGE_HELP } from '../help'
 import { confirm, pendingConfirm, performWrite, revealOnce } from '../store'
-import { ConfirmDialog, RevealOnceModal } from './Dialogs'
-import { NAV } from './Layout'
-import { Mascot, MascotMessage } from './Mascot'
-import { DataTable, Field, InfoTip, Input, PageIntro, Tabs } from './ui'
 
-const tick = () => new Promise((r) => setTimeout(r, 0))
+GlobalRegistrator.register({ url: 'http://localhost/admin/' })
+;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+const { act, createElement: h } = await import('react')
+const { createRoot } = await import('react-dom/client')
+const { ConfirmDialog, RevealOnceModal } = await import('./Dialogs')
+const { NAV } = await import('./Layout')
+const { Mascot, MascotMessage } = await import('./Mascot')
+const { DataTable, Field, InfoTip, Input, PageIntro, Tabs } = await import('./ui')
 
+const tick = () => act(() => new Promise<void>((r) => setTimeout(r, 0)))
+
+// Dialogs and popovers portal into document.body, so queries look at the whole document.
 let root: HTMLElement
+let reactRoot: Root | null = null
+function render(node: ReactNode | null, el: HTMLElement) {
+  act(() => {
+    if (node === null) {
+      reactRoot?.unmount()
+      reactRoot = null
+      return
+    }
+    reactRoot ??= createRoot(el)
+    reactRoot.render(node)
+  })
+}
+const $ = (sel: string) => document.querySelector(sel)
+const $$ = (sel: string) => document.querySelectorAll(sel)
+
 beforeAll(() => {
-  GlobalRegistrator.register({ url: 'http://localhost/admin/' })
   root = document.createElement('div')
   document.body.appendChild(root)
 })
@@ -22,21 +44,30 @@ afterAll(async () => {
   await GlobalRegistrator.unregister()
 })
 
+/** Set an input's value the way a user would, so React's change tracking sees it. */
+function typeInto(input: HTMLInputElement, value: string) {
+  const set = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value')?.set
+  act(() => {
+    set?.call(input, value)
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+}
+
 function click(el: Element | null | undefined) {
   if (!el) throw new Error('element not found')
-  ;(el as HTMLElement).click()
+  act(() => (el as HTMLElement).click())
 }
 
 describe('Mascot', () => {
   test('renders every state as labelled SVG', () => {
     for (const state of ['idle', 'spinner', 'smile', 'angry', 'secret'] as const) {
       render(h(Mascot, { state }), root)
-      const svg = root.querySelector('svg')
+      const svg = $('svg')
       expect(svg?.getAttribute('data-mascot')).toBe(state)
       expect(svg?.getAttribute('role')).toBe('img')
     }
     render(h(MascotMessage, { state: 'angry', title: 'Broken' }), root)
-    expect(root.querySelector('[role="alert"]')?.textContent).toContain('Broken')
+    expect($('[role="alert"]')?.textContent).toContain('Broken')
   })
 })
 
@@ -52,25 +83,23 @@ describe('ConfirmDialog', () => {
       run: async () => ++ran,
     })
     await tick()
-    const scope = root.querySelectorAll('[data-confirm-scope] li')
+    const scope = $$('[data-confirm-scope] li')
     expect([...scope].map((li) => li.textContent?.replace('•', '').trim())).toEqual([
       'Allocation a1',
       'Client 1.2.3.4:5000',
     ])
-    expect(root.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe(
-      'Kill TURN allocation',
-    )
-    click(root.querySelector('[data-confirm="ok"]'))
+    expect($('[role="dialog"]')?.getAttribute('aria-label')).toBe('Kill TURN allocation')
+    click($('[data-confirm="ok"]'))
     expect(await p).toEqual({ ok: true, value: 1 })
     await tick()
-    expect(root.querySelector('[role="dialog"]')).toBeNull()
+    expect($('[role="dialog"]')).toBeNull()
   })
 
   test('cancel resolves false', async () => {
     render(h(ConfirmDialog, {}), root)
     const p = confirm({ title: 'Delete', action: 'Delete', scope: ['x'] })
     await tick()
-    click(root.querySelector('[data-confirm="cancel"]'))
+    click($('[data-confirm="cancel"]'))
     expect(await p).toBe(false)
   })
 
@@ -84,14 +113,12 @@ describe('ConfirmDialog', () => {
       scope: ['App Pixel Party'],
     })
     await tick()
-    const ok = root.querySelector('[data-confirm="ok"]') as HTMLButtonElement
+    const ok = $('[data-confirm="ok"]') as HTMLButtonElement
     expect(ok.disabled).toBe(true)
-    const input = root.querySelector('input[aria-label="Confirmation text"]') as HTMLInputElement
-    input.value = 'Pixel Party'
-    input.dispatchEvent(new Event('input', { bubbles: true }))
+    typeInto($('input[aria-label="Confirmation text"]') as HTMLInputElement, 'Pixel Party')
     await tick()
-    expect((root.querySelector('[data-confirm="ok"]') as HTMLButtonElement).disabled).toBe(false)
-    click(root.querySelector('[data-confirm="ok"]'))
+    expect(($('[data-confirm="ok"]') as HTMLButtonElement).disabled).toBe(false)
+    click($('[data-confirm="ok"]'))
     expect(await p).toBe(true)
     expect(pendingConfirm.value).toBeNull()
   })
@@ -102,14 +129,14 @@ describe('RevealOnceModal', () => {
     render(h(RevealOnceModal, {}), root)
     revealOnce({ title: 'New API key', secrets: [{ label: 'API key', value: 'bh_secret' }] })
     await tick()
-    expect(root.querySelector('[data-secret="API key"]')?.textContent).toBe('bh_secret')
-    const done = root.querySelector('[data-reveal="done"]') as HTMLButtonElement
+    expect($('[data-secret="API key"]')?.textContent).toBe('bh_secret')
+    const done = $('[data-reveal="done"]') as HTMLButtonElement
     expect(done.disabled).toBe(true)
-    click(root.querySelector('input[type="checkbox"]'))
+    click($('[role="checkbox"]'))
     await tick()
-    click(root.querySelector('[data-reveal="done"]'))
+    click($('[data-reveal="done"]'))
     await tick()
-    expect(root.querySelector('[data-secret]')).toBeNull()
+    expect($('[data-secret]')).toBeNull()
   })
 })
 
@@ -126,9 +153,9 @@ describe('DataTable', () => {
       }),
       root,
     )
-    expect(root.querySelectorAll('tbody tr')).toHaveLength(2)
-    expect(root.querySelectorAll('ul li')).toHaveLength(2)
-    expect(root.querySelector('tbody')?.textContent).toContain('2.2.2.2')
+    expect($$('tbody tr')).toHaveLength(2)
+    expect($$('ul li')).toHaveLength(2)
+    expect($('tbody')?.textContent).toContain('2.2.2.2')
   })
 })
 
@@ -149,16 +176,14 @@ describe('Explanations', () => {
     localStorage.clear()
     render(h(PageIntro, { help: PAGE_HELP.turn }), root)
     expect(root.textContent).toContain('How to use it')
-    click(root.querySelector('[data-intro="turn"] button'))
+    click($('[data-intro="turn"] button'))
     await tick()
     expect(root.textContent).not.toContain('How to use it')
     expect(localStorage.getItem('bh-admin-intro:turn')).toBe('hidden')
     render(null, root)
     render(h(PageIntro, { help: PAGE_HELP.turn }), root)
-    expect(root.querySelector('[data-intro="turn"] button')?.getAttribute('aria-expanded')).toBe(
-      'false',
-    )
-    click(root.querySelector('[data-intro="turn"] button'))
+    expect($('[data-intro="turn"] button')?.getAttribute('aria-expanded')).toBe('false')
+    click($('[data-intro="turn"] button'))
     await tick()
     expect(localStorage.getItem('bh-admin-intro:turn')).toBeNull()
   })
@@ -172,16 +197,20 @@ describe('Explanations', () => {
       }),
       root,
     )
-    const tip = root.querySelector('[data-infotip]') as HTMLElement
+    const tip = $('[data-infotip]') as HTMLElement
     expect(tip.getAttribute('aria-label')).toBe('What is Port?')
-    expect(root.querySelector('[role="tooltip"]')).toBeNull()
+    expect($('[role="tooltip"]')).toBeNull()
     click(tip)
     await tick()
-    expect(root.querySelector('[role="tooltip"]')?.textContent).toBe('Where TURN listens')
-    expect(document.activeElement).not.toBe(root.querySelector('input'))
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect($('[role="tooltip"]')?.textContent).toBe('Where TURN listens')
+    expect(document.activeElement).not.toBe($('input'))
+    act(() => {
+      document.activeElement?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+      )
+    })
     await tick()
-    expect(root.querySelector('[role="tooltip"]')).toBeNull()
+    expect($('[role="tooltip"]')).toBeNull()
   })
 
   test('InfoTip in a clickable row does not trigger the row', async () => {
@@ -195,13 +224,11 @@ describe('Explanations', () => {
       }),
       root,
     )
-    click(root.querySelector('ul [data-infotip]'))
+    click($('ul [data-infotip]'))
     await tick()
     expect(clicks).toBe(0)
     render(h(InfoTip, { label: 'Standalone', children: 'ok' }), root)
-    expect(root.querySelector('[data-infotip]')?.getAttribute('aria-label')).toBe(
-      'What is Standalone?',
-    )
+    expect($('[data-infotip]')?.getAttribute('aria-label')).toBe('What is Standalone?')
   })
 
   test('Tabs explain the active tab', () => {
@@ -216,6 +243,6 @@ describe('Explanations', () => {
       }),
       root,
     )
-    expect(root.querySelector('[data-tab-description]')?.textContent).toBe('about B')
+    expect($('[data-tab-description]')?.textContent).toBe('about B')
   })
 })

@@ -1,5 +1,5 @@
-/** @jsxImportSource preact */
-import { useState } from 'preact/hooks'
+import { useState } from 'react'
+import { useValue } from '@/lib/signals'
 import { Async, useResource } from '../components/Async'
 import {
   Badge,
@@ -31,7 +31,7 @@ const STATUS_TONE: Record<InvoiceStatus, 'ok' | 'warn' | 'muted' | 'violet'> = {
 }
 
 export function Payments() {
-  const tab = (currentQuery.value.get('tab') as Tab) || 'plans'
+  const tab = (useValue(currentQuery).get('tab') as Tab) || 'plans'
   const invoices = useResource(() => api.payments.invoices(), [])
   const revenue = invoices.data
     ?.filter((i) => i.status === 'paid')
@@ -44,7 +44,7 @@ export function Payments() {
         subtitle="Lightning plans for paid write access"
         intro={PAGE_HELP.payments}
       />
-      <div class="grid grid-cols-2 gap-3 mb-4">
+      <div className="grid grid-cols-2 gap-4">
         <Stat
           label="Revenue (listed)"
           value={formatSats(revenue)}
@@ -87,7 +87,7 @@ export function Payments() {
           },
         ]}
       />
-      <div class="pt-4">
+      <div className="flex flex-col gap-6">
         {tab === 'plans' && <Plans />}
         {tab === 'invoices' && (
           <Card title="Invoices">
@@ -173,16 +173,20 @@ function Plans() {
     >
       <Async res={res} emptyTitle="No plans. Writes are free.">
         {(plans) => (
-          <ul class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {plans.map((p) => (
-              <li key={p.id} class="rounded-md border border-line p-3">
-                <div class="flex items-center justify-between">
-                  <span class="font-medium">{p.name}</span>
+              <li key={p.id} className="rounded-md border border-border p-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">{p.name}</span>
                   <Badge tone={p.active ? 'ok' : 'muted'}>{p.active ? 'active' : 'inactive'}</Badge>
                 </div>
-                <div class="text-xl font-semibold text-teal mt-1">{formatSats(p.priceSats)}</div>
-                <div class="text-xs text-muted">per {p.periodDays} days</div>
-                {p.description && <p class="text-sm text-muted mt-2">{p.description}</p>}
+                <div className="text-xl font-semibold text-primary mt-1">
+                  {formatSats(p.priceSats)}
+                </div>
+                <div className="text-xs text-muted-foreground">per {p.periodDays} days</div>
+                {p.description && (
+                  <p className="text-sm text-muted-foreground mt-2">{p.description}</p>
+                )}
               </li>
             ))}
           </ul>
@@ -202,11 +206,11 @@ function Plans() {
           </>
         }
       >
-        <div class="space-y-3">
+        <div className="space-y-4">
           <Field label="Name" hint="Shown to buyers, e.g. “Monthly” or “Supporter”.">
             <Input value={form.name} onValue={(v) => setForm({ ...form, name: v })} />
           </Field>
-          <div class="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <Field label="Price (sats)" help="Price in satoshis (100,000,000 sats = 1 BTC).">
               <Input
                 type="number"
@@ -278,32 +282,32 @@ function Wallet() {
   return (
     <Async res={res} empty={() => false}>
       {(nwc) => (
-        <div class="grid md:grid-cols-2 gap-4">
+        <div className="grid gap-6 md:grid-cols-2">
           <Card
             title="Nostr Wallet Connect"
             description="NWC lets the relay talk to your Lightning wallet over Nostr to create invoices and detect payments. Create a connection in your wallet (Alby Hub, Mutiny, etc.) with permission to make and look up invoices, then paste its URI here."
           >
-            <div class="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2 mb-3">
               <Badge tone={nwc.connected ? 'ok' : 'danger'}>
                 {nwc.connected ? 'connected' : 'disconnected'}
               </Badge>
               {nwc.balanceSats != null && (
-                <span class="text-sm text-muted">{formatSats(nwc.balanceSats)}</span>
+                <span className="text-sm text-muted-foreground">{formatSats(nwc.balanceSats)}</span>
               )}
             </div>
-            <dl class="text-sm space-y-1 mb-4">
+            <dl className="text-sm space-y-1 mb-4">
               {nwc.walletPubkey && (
                 <div>
-                  <dt class="text-xs text-muted inline">Wallet </dt>
-                  <dd class="inline">
+                  <dt className="text-xs text-muted-foreground inline">Wallet </dt>
+                  <dd className="inline">
                     <Mono>{shortHex(nwc.walletPubkey, 12, 6)}</Mono>
                   </dd>
                 </div>
               )}
               {nwc.relay && (
                 <div>
-                  <dt class="text-xs text-muted inline">Relay </dt>
-                  <dd class="inline">
+                  <dt className="text-xs text-muted-foreground inline">Relay </dt>
+                  <dd className="inline">
                     <Mono>{nwc.relay}</Mono>
                   </dd>
                 </div>
@@ -322,7 +326,7 @@ function Wallet() {
                 placeholder="nostr+walletconnect://"
               />
             </Field>
-            <div class="flex gap-2 mt-3 flex-wrap">
+            <div className="flex gap-2 mt-3 flex-wrap">
               <Button
                 variant="primary"
                 disabled={!validUri}
@@ -373,14 +377,14 @@ function Wallet() {
             title="Lightning address / LNURL"
             description="A Lightning address (like an email address for payments) where people can send tips or pay manually. It is shown on /pay and advertised in your NIP-11 document."
           >
-            <p class="text-sm text-muted mb-3">
+            <p className="text-sm text-muted-foreground mb-3">
               Current: <Mono>{nwc.lnurl ?? 'not set'}</Mono>
             </p>
             <Field label="LNURL or lightning address">
               <Input value={lnurl} onValue={setLnurl} placeholder="pay@relay.example.com" />
             </Field>
             <Button
-              class="mt-3"
+              className="mt-3"
               disabled={!lnurl.trim()}
               onClick={async () => {
                 const r = await performWrite({

@@ -1,6 +1,6 @@
 // App-wide state: session, confirmation flow, toasts and reveal-once secrets. DOM-free so it tests in Bun.
 
-import { signal } from '@preact/signals'
+import { signal } from '@preact/signals-core'
 import { ApiError } from './api'
 import type { Me } from './types'
 

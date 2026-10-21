@@ -183,7 +183,7 @@ Realms can require AUTH before accepting kind 20100/20101; the demo on public re
 The demo uses public relays and public STUN only (no TURN, no data relay), so a symmetric-NAT pair will fail there; the demo shows the failure reason and offers a field to point at your own relay.
 ## Admin UI
 A mobile-first SPA at /admin, dark by default in the Beamhop palette (midnight indigo #0B0E1A, teal #5EEAD4, violet #8B7BFF), fed by one WebSocket stats stream so every screen is live.
-Stack: Preact + signals, Vite, Tailwind with Beamhop tokens from @beamhop/ui, uPlot for charts, bottom navigation on phones. The bunny mascot states (Idle, Spinner, Smile, Angry, Secret) cover loading, empty and error states.
+Stack: React 19 + shadcn/ui, signals for app state, Vite, Tailwind with Beamhop tokens from @beamhop/ui, uPlot for charts, bottom navigation on phones. The bunny mascot states (Idle, Spinner, Smile, Angry, Secret) cover loading, empty and error states.
  | 
 Area | 
 Screens | 

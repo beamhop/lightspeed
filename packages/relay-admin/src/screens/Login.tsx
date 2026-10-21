@@ -1,8 +1,7 @@
-/** @jsxImportSource preact */
-import { useState } from 'preact/hooks'
+import { useState } from 'react'
 import { signInWithSigner, validTotp } from '../auth'
 import { Mascot } from '../components/Mascot'
-import { Button, Field, Input, Tabs } from '../components/ui'
+import { Button, Card, Field, Input, Tabs } from '../components/ui'
 import { api, isMock } from '../ctx'
 import { hasNip07, localSigner, nip07Signer, nip46Signer, type Signer } from '../nostr'
 import { errorMessage, revealOnce, session } from '../store'
@@ -42,21 +41,18 @@ export function Login() {
   }
 
   return (
-    <div class="min-h-dvh flex items-center justify-center px-4 py-10">
-      <div class="w-full max-w-md">
-        <div class="flex flex-col items-center text-center mb-6">
+    <div className="min-h-dvh flex items-center justify-center px-4 py-10">
+      <div className="w-full max-w-md">
+        <div className="mb-6 flex flex-col items-center gap-1 text-center">
           <Mascot state={error ? 'angry' : busy ? 'spinner' : 'idle'} size={88} />
-          <h1 class="mt-3 text-2xl font-semibold">Beamhop Relay</h1>
-          <p class="text-sm text-muted">
+          <h1 className="mt-3 text-2xl font-semibold tracking-tight">Beamhop Relay</h1>
+          <p className="text-sm text-muted-foreground">
             Admin sign-in{isMock ? ' · mock mode (any credentials work)' : ''}
           </p>
         </div>
-        <p class="text-sm text-muted mb-4 text-center leading-relaxed">
-          This console manages the relay: apps, the Nostr relay, TURN, media, payments and other
-          admins. Choose how you sign in below; first time here, use <strong>Claim</strong>.
-        </p>
-        <div class="rounded-lg bg-surface border border-line p-4">
+        <Card description="This console manages the relay: apps, the Nostr relay, TURN, media, payments and other admins. Choose how you sign in below; first time here, use Claim.">
           <Tabs<Method>
+            stretch
             value={method}
             onChange={(m) => {
               setMethod(m)
@@ -69,19 +65,19 @@ export function Login() {
               { id: 'bootstrap', label: 'Claim' },
             ]}
           />
-          <div class="pt-4">
+          <div className="pt-5">
             {method === 'nostr' && <NostrForm busy={busy} run={run} />}
             {method === 'bunker' && <BunkerForm busy={busy} run={run} setInfo={setInfo} />}
             {method === 'password' && <PasswordForm busy={busy} run={run} />}
             {method === 'bootstrap' && <BootstrapForm busy={busy} run={run} />}
-            {info && <p class="mt-3 text-sm text-muted">{info}</p>}
+            {info && <p className="mt-4 text-sm text-muted-foreground">{info}</p>}
             {error && (
-              <p class="mt-3 text-sm text-danger" role="alert">
+              <p className="mt-4 text-sm text-destructive" role="alert">
                 {error}
               </p>
             )}
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   )
@@ -91,21 +87,21 @@ type FormProps = { busy: boolean; run: (fn: () => Promise<Me>) => Promise<void> 
 
 function NostrForm({ busy, run }: FormProps) {
   return (
-    <div class="space-y-3">
-      <p class="text-sm text-muted">
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
         Sign a one-time challenge with your browser extension (NIP-07). Your pubkey must be on the
         admin allowlist.
       </p>
       <Button
         variant="primary"
-        class="w-full"
+        className="w-full"
         loading={busy}
         onClick={() => run(() => signInWithSigner(api, browserSigner(), origin()))}
       >
         Sign in with extension
       </Button>
       {!hasNip07() && !isMock && (
-        <p class="text-xs text-warn">No extension detected in this browser.</p>
+        <p className="text-xs text-warning">No extension detected in this browser.</p>
       )}
     </div>
   )
@@ -115,7 +111,7 @@ function BunkerForm({ busy, run, setInfo }: FormProps & { setInfo: (s: string | 
   const [uri, setUri] = useState('')
   return (
     <form
-      class="space-y-3"
+      className="space-y-4"
       onSubmit={(e) => {
         e.preventDefault()
         void run(async () => {
@@ -135,7 +131,7 @@ function BunkerForm({ busy, run, setInfo }: FormProps & { setInfo: (s: string | 
         })
       }}
     >
-      <p class="text-sm text-muted">
+      <p className="text-sm text-muted-foreground">
         Sign in with a key held by a remote signer app (NIP-46), for example on your phone. Your
         private key never touches this browser.
       </p>
@@ -151,7 +147,7 @@ function BunkerForm({ busy, run, setInfo }: FormProps & { setInfo: (s: string | 
       <Button
         type="submit"
         variant="primary"
-        class="w-full"
+        className="w-full"
         loading={busy}
         disabled={!uri.startsWith('bunker://')}
       >
@@ -167,13 +163,13 @@ function PasswordForm({ busy, run }: FormProps) {
   const [totp, setTotp] = useState('')
   return (
     <form
-      class="space-y-3"
+      className="space-y-4"
       onSubmit={(e) => {
         e.preventDefault()
         void run(() => api.auth.password(username.trim(), password, totp.trim()))
       }}
     >
-      <p class="text-sm text-muted">
+      <p className="text-sm text-muted-foreground">
         For admins invited with a username. You need your password and the current code from the
         authenticator app you enrolled (Google Authenticator, 1Password, Aegis…).
       </p>
@@ -211,7 +207,7 @@ function PasswordForm({ busy, run }: FormProps) {
       <Button
         type="submit"
         variant="primary"
-        class="w-full"
+        className="w-full"
         loading={busy}
         disabled={!username || !password || !validTotp(totp)}
       >
@@ -228,7 +224,7 @@ function BootstrapForm({ busy, run }: FormProps) {
   const [password, setPassword] = useState('')
   return (
     <form
-      class="space-y-3"
+      className="space-y-4"
       onSubmit={(e) => {
         e.preventDefault()
         void run(async () => {
@@ -255,14 +251,14 @@ function BootstrapForm({ busy, run }: FormProps) {
         })
       }}
     >
-      <p class="text-sm text-muted">
+      <p className="text-sm text-muted-foreground">
         First run only: paste the bootstrap token printed in the relay logs to claim the owner
         account.
       </p>
       <Field label="Bootstrap token">
-        <Input value={token} onValue={setToken} autoComplete="off" required class="font-mono" />
+        <Input value={token} onValue={setToken} autoComplete="off" required className="font-mono" />
       </Field>
-      <div class="flex gap-2">
+      <div className="flex gap-2">
         <Button
           size="sm"
           variant={mode === 'nostr' ? 'primary' : 'secondary'}
@@ -298,7 +294,7 @@ function BootstrapForm({ busy, run }: FormProps) {
       <Button
         type="submit"
         variant="primary"
-        class="w-full"
+        className="w-full"
         loading={busy}
         disabled={!token || (mode === 'password' && (!username || password.length < 12))}
       >

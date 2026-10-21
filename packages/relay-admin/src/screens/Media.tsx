@@ -1,5 +1,4 @@
-/** @jsxImportSource preact */
-import { useState } from 'preact/hooks'
+import { type FormEvent, useState } from 'react'
 import { Async, useResource } from '../components/Async'
 import {
   Badge,
@@ -28,7 +27,7 @@ export function Media() {
   const [query, setQuery] = useState<{ app?: string; pubkey?: string }>({})
   const blobs = useResource(() => api.media.blobs(query), [query.app, query.pubkey])
 
-  const apply = (e: Event) => {
+  const apply = (e: FormEvent) => {
     e.preventDefault()
     try {
       setQuery({
@@ -73,7 +72,7 @@ export function Media() {
         subtitle="Blossom blobs by app and pubkey"
         intro={PAGE_HELP.media}
       />
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Stat
           label="Blobs (listed)"
           value={blobs.data?.length ?? '—'}
@@ -95,12 +94,8 @@ export function Media() {
           />
         ))}
       </div>
-      <Card
-        class="mb-4"
-        title="Filter"
-        description="Leave both empty to see recent uploads from everyone."
-      >
-        <form onSubmit={apply} class="grid gap-3 pt-3 sm:grid-cols-[1fr_1fr_auto] items-end">
+      <Card title="Filter" description="Leave both empty to see recent uploads from everyone.">
+        <form onSubmit={apply} className="grid items-end gap-4 sm:grid-cols-[1fr_1fr_auto]">
           <Field label="App" help="Only show files uploaded with this app’s credentials.">
             <Select
               value={app}
@@ -125,24 +120,23 @@ export function Media() {
       </Card>
       <Card
         title="Blobs"
-        class="mb-4"
         description="Deleting a blob frees its space and makes its URL return 404 on this server. Copies mirrored on other Blossom servers stay online."
       >
         <Async res={blobs} emptyTitle="No blobs for this filter">
           {(list) => (
-            <ul class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {list.map((b) => (
                 <li
                   key={b.sha256}
-                  class="rounded-md border border-line bg-midnight/40 overflow-hidden flex flex-col"
+                  className="rounded-md border border-border bg-background/40 overflow-hidden flex flex-col"
                 >
-                  <div class="aspect-video bg-raised flex items-center justify-center text-muted text-xs relative">
+                  <div className="aspect-video bg-muted flex items-center justify-center text-muted-foreground text-xs relative">
                     {b.type.startsWith('image/') && !isMock ? (
                       <img
                         src={b.url ?? `/${b.sha256}`}
                         alt=""
                         loading="lazy"
-                        class="absolute inset-0 size-full object-cover"
+                        className="absolute inset-0 size-full object-cover"
                         onError={(e) =>
                           ((e.currentTarget as HTMLImageElement).style.display = 'none')
                         }
@@ -150,18 +144,18 @@ export function Media() {
                     ) : null}
                     <span>{b.type}</span>
                   </div>
-                  <div class="p-2 text-xs space-y-1 flex-1">
-                    <Mono class="block truncate">{shortHex(b.sha256, 10, 4)}</Mono>
-                    <div class="flex justify-between text-muted">
+                  <div className="p-2 text-xs space-y-1 flex-1">
+                    <Mono className="block truncate">{shortHex(b.sha256, 10, 4)}</Mono>
+                    <div className="flex justify-between text-muted-foreground">
                       <span>{formatBytes(b.size)}</span>
                       <span>{formatAgo(b.uploaded)}</span>
                     </div>
-                    <div class="truncate text-muted">
+                    <div className="truncate text-muted-foreground">
                       {b.app ? appName(b.app) : <Badge>no app</Badge>}
                     </div>
                   </div>
-                  <div class="p-2 pt-0">
-                    <Button size="sm" variant="danger" class="w-full" onClick={() => del(b)}>
+                  <div className="p-2 pt-0">
+                    <Button size="sm" variant="danger" className="w-full" onClick={() => del(b)}>
                       Delete
                     </Button>
                   </div>
@@ -177,17 +171,17 @@ export function Media() {
       >
         <Async res={apps} emptyTitle="No apps">
           {(list) => (
-            <ul class="space-y-3">
+            <ul className="space-y-4">
               {list.map((a) => {
                 const used = a.usage?.blobsBytes ?? 0
                 const max = a.quotas.maxStorageBytes ?? 0
                 return (
                   <li key={a.id}>
-                    <div class="flex justify-between text-sm mb-1">
-                      <Link to={`/apps/${a.id}?tab=quotas`} class="hover:text-teal">
+                    <div className="flex justify-between text-sm mb-1">
+                      <Link to={`/apps/${a.id}?tab=quotas`} className="hover:text-primary">
                         {a.name}
                       </Link>
-                      <span class="text-muted text-xs">
+                      <span className="text-muted-foreground text-xs">
                         {formatBytes(used)} / {max ? formatBytes(max) : 'unlimited'}
                         {a.quotas.maxBlobBytes
                           ? ` · max blob ${formatBytes(a.quotas.maxBlobBytes)}`

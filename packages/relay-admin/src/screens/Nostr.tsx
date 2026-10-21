@@ -1,5 +1,5 @@
-/** @jsxImportSource preact */
-import { useEffect, useState } from 'preact/hooks'
+import { type FormEvent, useEffect, useState } from 'react'
+import { useValue } from '@/lib/signals'
 import { Async, useResource } from '../components/Async'
 import { MascotMessage } from '../components/Mascot'
 import { PolicyEditor } from '../components/PolicyEditor'
@@ -74,7 +74,7 @@ const TABS: { id: Tab; label: string; description: string }[] = [
 ]
 
 export function Nostr() {
-  const tab = (currentQuery.value.get('tab') as Tab) || 'events'
+  const tab = (useValue(currentQuery).get('tab') as Tab) || 'events'
   return (
     <>
       <PageHeader
@@ -87,7 +87,7 @@ export function Nostr() {
         tabs={TABS}
         onChange={(t) => navigate(`/nostr?tab=${t}`, { replace: true })}
       />
-      <div class="pt-4">
+      <div className="flex flex-col gap-6">
         {tab === 'events' && <EventExplorer />}
         {tab === 'subs' && <Subscriptions />}
         {tab === 'policy' && <PolicyEditor realm={GLOBAL_REALM} />}
@@ -164,7 +164,7 @@ function EventExplorer() {
   }
   useEffect(() => void load(query, false), [query])
 
-  const submit = (e: Event) => {
+  const submit = (e: FormEvent) => {
     e.preventDefault()
     try {
       setQuery(buildEventQuery(form))
@@ -193,8 +193,8 @@ function EventExplorer() {
 
   return (
     <>
-      <Card class="mb-4">
-        <form onSubmit={submit} class="grid gap-3 pt-3 sm:grid-cols-2 lg:grid-cols-5 items-end">
+      <Card>
+        <form onSubmit={submit} className="grid items-end gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <Field
             label="Search (NIP-50)"
             help="Full-text search over event content using NIP-50. Matches words, not exact substrings."
@@ -229,8 +229,8 @@ function EventExplorer() {
           >
             <Input value={form.tag} onValue={upd('tag')} placeholder="t:nostr" />
           </Field>
-          <div class="flex gap-2">
-            <Button type="submit" variant="primary" class="flex-1" loading={loading}>
+          <div className="flex gap-2">
+            <Button type="submit" variant="primary" className="flex-1" loading={loading}>
               Filter
             </Button>
             <Button
@@ -244,7 +244,7 @@ function EventExplorer() {
             </Button>
           </div>
         </form>
-        {formErr && <p class="text-sm text-danger mt-2">{formErr}</p>}
+        {formErr && <p className="text-sm text-destructive mt-2">{formErr}</p>}
       </Card>
       {error && !events ? (
         <MascotMessage state="angry" title="Could not query events">
@@ -255,16 +255,16 @@ function EventExplorer() {
       ) : events.length === 0 ? (
         <MascotMessage state="smile" title="No events match these filters" compact />
       ) : (
-        <ul class="space-y-2">
+        <ul className="space-y-2">
           {events.map((ev) => (
-            <li key={ev.id} class="rounded-md border border-line bg-surface p-3">
-              <div class="flex items-center gap-2 flex-wrap text-xs">
+            <li key={ev.id} className="rounded-md border border-border bg-card p-3">
+              <div className="flex items-center gap-2 flex-wrap text-xs">
                 <Badge tone="violet">{kindLabel(ev.kind)}</Badge>
-                <Mono class="text-muted">{shortNpub(ev.pubkey)}</Mono>
-                <span class="text-muted" title={formatDate(ev.created_at)}>
+                <Mono className="text-muted-foreground">{shortNpub(ev.pubkey)}</Mono>
+                <span className="text-muted-foreground" title={formatDate(ev.created_at)}>
                   {formatAgo(ev.created_at)}
                 </span>
-                <span class="ml-auto flex gap-1">
+                <span className="ml-auto flex gap-1">
                   <Button
                     size="sm"
                     variant="ghost"
@@ -277,27 +277,27 @@ function EventExplorer() {
                   </Button>
                 </span>
               </div>
-              <p class="mt-1.5 text-sm break-words line-clamp-3">
-                {ev.content || <span class="text-muted italic">(empty)</span>}
+              <p className="mt-1.5 text-sm break-words line-clamp-3">
+                {ev.content || <span className="text-muted-foreground italic">(empty)</span>}
               </p>
               {ev.tags.length > 0 && (
-                <div class="mt-1.5 flex flex-wrap gap-1">
+                <div className="mt-1.5 flex flex-wrap gap-1">
                   {ev.tags.slice(0, 6).map((t, i) => (
-                    <Mono key={i} class="rounded bg-raised px-1.5 py-0.5 text-muted">
+                    <Mono key={i} className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground">
                       {t[0]}:{shortHex(t[1] ?? '', 10, 4)}
                     </Mono>
                   ))}
                 </div>
               )}
               {open === ev.id && (
-                <pre class="mt-2 max-h-72 overflow-auto rounded bg-midnight p-2 text-[11px] font-mono text-muted">
+                <pre className="mt-2 max-h-72 overflow-auto rounded bg-background p-2 text-[11px] font-mono text-muted-foreground">
                   {JSON.stringify(ev, null, 2)}
                 </pre>
               )}
             </li>
           ))}
           {more && (
-            <li class="flex justify-center pt-2">
+            <li className="flex justify-center pt-2">
               <Button
                 loading={loading}
                 onClick={() => {
@@ -321,7 +321,7 @@ function Subscriptions() {
     <Card
       title="Live subscriptions"
       description="Use “Ban IP…” to jump to TURN → IP bans with the client’s address filled in; bans apply to every listener, not only Nostr."
-      actions={<span class="text-xs text-muted">refreshes every 5s</span>}
+      actions={<span className="text-xs text-muted-foreground">refreshes every 5s</span>}
     >
       <Async res={res} emptyTitle="No open subscriptions">
         {(subs) => (
@@ -352,7 +352,9 @@ function Subscriptions() {
                 label: 'Filters',
                 help: 'The NIP-01 filters the client asked for (kinds, authors, tags, since/until). Very broad filters on the public relay are a sign of scraping.',
                 render: (s) => (
-                  <Mono class="text-muted">{JSON.stringify(s.filters).slice(0, 60)}</Mono>
+                  <Mono className="text-muted-foreground">
+                    {JSON.stringify(s.filters).slice(0, 60)}
+                  </Mono>
                 ),
                 hideOnMobile: true,
               },
@@ -399,7 +401,7 @@ function Nip11Editor() {
   return (
     <Async res={res}>
       {(info) => (
-        <div class="grid lg:grid-cols-[1fr_320px] gap-4">
+        <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
           <Card
             title="NIP-11 document (JSON)"
             description="Edit the JSON and Publish. Common fields: name, description, pubkey (operator’s key), contact, icon, supported_nips and limitation. Every app realm serves this document merged with its own details."
@@ -408,12 +410,12 @@ function Nip11Editor() {
               value={text}
               onValue={setText}
               rows={22}
-              spellcheck={false}
+              spellCheck={false}
               aria-label="NIP-11 JSON"
             />
-            {!parsed && <p class="text-xs text-danger mt-1">Invalid JSON object</p>}
-            {err && <p class="text-xs text-danger mt-1">{err}</p>}
-            <div class="flex justify-end gap-2 mt-3">
+            {!parsed && <p className="text-xs text-destructive mt-1">Invalid JSON object</p>}
+            {err && <p className="text-xs text-destructive mt-1">{err}</p>}
+            <div className="flex justify-end gap-2 mt-3">
               <Button variant="ghost" onClick={() => setText(JSON.stringify(info, null, 2))}>
                 Reset
               </Button>
@@ -451,12 +453,14 @@ function Nip11Editor() {
             description="Roughly how relay browsers and clients will show your relay."
           >
             {parsed ? (
-              <div class="space-y-2 text-sm">
-                <div class="font-semibold">{parsed.name ?? 'Unnamed relay'}</div>
-                <p class="text-muted">{parsed.description}</p>
-                {parsed.pubkey && <Mono class="text-muted block">{shortNpub(parsed.pubkey)}</Mono>}
-                {parsed.contact && <div class="text-xs">{parsed.contact}</div>}
-                <div class="flex flex-wrap gap-1 pt-1">
+              <div className="space-y-2 text-sm">
+                <div className="font-semibold">{parsed.name ?? 'Unnamed relay'}</div>
+                <p className="text-muted-foreground">{parsed.description}</p>
+                {parsed.pubkey && (
+                  <Mono className="text-muted-foreground block">{shortNpub(parsed.pubkey)}</Mono>
+                )}
+                {parsed.contact && <div className="text-xs">{parsed.contact}</div>}
+                <div className="flex flex-wrap gap-1 pt-1">
                   {(parsed.supported_nips ?? []).map((n) => (
                     <Badge key={n} tone="teal">
                       NIP-{String(n).padStart(2, '0')}
@@ -464,7 +468,9 @@ function Nip11Editor() {
                   ))}
                 </div>
                 {parsed.supported_nips && (
-                  <div class="text-[11px] text-muted">{formatKinds(parsed.supported_nips)}</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {formatKinds(parsed.supported_nips)}
+                  </div>
                 )}
               </div>
             ) : (
@@ -529,7 +535,7 @@ function Backups() {
           />
         )}
       </Async>
-      <p class="text-xs text-muted mt-3">
+      <p className="text-xs text-muted-foreground mt-3">
         Restore is an offline operation: stop the relay, run{' '}
         <Mono>beamhop relay restore &lt;backup-id&gt;</Mono>, then start it again.
       </p>

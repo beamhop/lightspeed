@@ -1,6 +1,6 @@
-/** @jsxImportSource preact */
 import { colors } from '@beamhop/ui'
-import { useState } from 'preact/hooks'
+import { type FormEvent, useState } from 'react'
+import { useValue } from '@/lib/signals'
 import { Async, useResource } from '../components/Async'
 import { Chart } from '../components/Chart'
 import {
@@ -23,11 +23,11 @@ import { performWrite } from '../store'
 import type { Allocation } from '../types'
 
 export function Turn() {
-  const ipFilter = currentQuery.value.get('ip') ?? ''
+  const ipFilter = useValue(currentQuery).get('ip') ?? ''
   const [filter, setFilter] = useState(ipFilter)
   const allocs = useResource(() => api.turn.allocations(), [], 3000)
-  const live = stats.latest.value
-  const series = stats.series.value
+  const live = useValue(stats.latest)
+  const series = useValue(stats.series)
 
   const kill = async (a: Allocation) => {
     const r = await performWrite({
@@ -59,7 +59,7 @@ export function Turn() {
         subtitle="Allocations, bandwidth and IP bans"
         intro={PAGE_HELP.turn}
       />
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Stat
           label="Allocations"
           value={live?.turn.allocations ?? allocs.data?.length ?? '—'}
@@ -84,7 +84,6 @@ export function Turn() {
       </div>
       <Card
         title="Bandwidth"
-        class="mb-4"
         description="Relayed megabits per second and the number of allocations over the last few minutes. Bandwidth rising faster than allocations means some sessions are unusually heavy (for example HD video)."
       >
         <Chart
@@ -106,14 +105,13 @@ export function Turn() {
       </Card>
       <Card
         title="Allocations"
-        class="mb-4"
         description="Each row is one client’s relay session. Killing one drops that peer’s relayed connection right away; a legitimate client will usually reconnect, so to stop abuse also ban the IP or rotate the app’s TURN secret."
         actions={
           <Input
             value={filter}
             onValue={setFilter}
             placeholder="Filter by IP, user or app"
-            class="!min-h-8 !py-1 w-56"
+            className="h-8 w-56"
             type="search"
           />
         }
@@ -179,7 +177,9 @@ export function Turn() {
                 )}
               />
             ) : (
-              <p class="text-sm text-muted py-4 text-center">No allocations match “{filter}”.</p>
+              <p className="text-sm text-muted-foreground py-4 text-center">
+                No allocations match “{filter}”.
+              </p>
             )
           }}
         </Async>
@@ -203,7 +203,7 @@ function Bans({ initialIp }: { initialIp: string }) {
   const [dur, setDur] = useState('86400')
   const valid = isIp(ip)
 
-  const add = async (e: Event) => {
+  const add = async (e: FormEvent) => {
     e.preventDefault()
     const durationSec = Number(dur) || null
     const r = await performWrite({
@@ -231,7 +231,7 @@ function Bans({ initialIp }: { initialIp: string }) {
       title="IP bans"
       description="Block an IP address or a whole range (CIDR, e.g. 203.0.113.0/24) from every listener: Nostr, TURN, media and this admin UI. Use a timed ban for a short burst of abuse and a permanent one for known bad actors. Be careful not to ban your own address."
     >
-      <form class="grid gap-3 sm:grid-cols-[1fr_1fr_160px_auto] items-end mb-4" onSubmit={add}>
+      <form className="mb-6 grid items-end gap-4 sm:grid-cols-[1fr_1fr_160px_auto]" onSubmit={add}>
         <Field
           label="IP or CIDR"
           error={ip && !valid ? 'Not an IP address' : null}
