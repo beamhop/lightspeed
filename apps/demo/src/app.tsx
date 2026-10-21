@@ -15,6 +15,7 @@ import { Files } from './screens/Files'
 import { Lobby } from './screens/Lobby'
 import { Room } from './screens/Room'
 import { ShareBox } from './screens/Share'
+import { TRANSPORTS } from './screens/Transport'
 
 type Tab = 'room' | 'cursors' | 'files' | 'call'
 const TABS: { id: Tab; label: string; icon: typeof Phone }[] = [
@@ -39,7 +40,12 @@ export function App() {
 
   async function join(next: DemoConfig) {
     setCfg(next)
-    saveStored<DemoConfig>({ name: next.name, identity: next.identity, ownRelay: next.ownRelay })
+    saveStored<DemoConfig>({
+      name: next.name,
+      identity: next.identity,
+      transport: next.transport,
+      ownRelay: next.ownRelay,
+    })
     setJoining(true)
     setError(null)
     try {
@@ -100,7 +106,9 @@ export function App() {
           }
           data-testid="mode"
         >
-          {room.mode === 'local' ? 'local tabs' : 'nostr + webrtc'}
+          {room.mode === 'local'
+            ? 'local tabs'
+            : `nostr + ${TRANSPORTS.find((t) => t.id === cfg.transport)?.badge ?? cfg.transport}`}
         </Badge>
         <Button variant="ghost" size="sm" onClick={() => setDebugOpen(true)}>
           <Bug />
@@ -162,7 +170,7 @@ export function App() {
         onOpenChange={setDebugOpen}
         room={room}
         cfg={cfg}
-        onOwnRelay={(ownRelay) => rejoinWith({ ownRelay, local: false })}
+        onTransport={(patch) => rejoinWith({ ...patch, local: false })}
       />
     </Shell>
   )

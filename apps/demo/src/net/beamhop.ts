@@ -1,7 +1,9 @@
 // DemoRoom backed by the real stack: an @beamhop/p2p room with Nostr signaling over public relays
-// (@beamhop/signaling-nostr) and WebRTC data channels with public STUN (@beamhop/p2p/webrtc). With
-// "use your own relay" the app realm is added for signaling, TURN credentials are fetched and the
-// relay data path is appended to the transport ladder.
+// (@beamhop/signaling-nostr). The data path follows `cfg.transport`:
+//   p2p   WebRTC data channels over public STUN (@beamhop/p2p/webrtc)
+//   turn  WebRTC with TURN credentials from your relay and `iceTransportPolicy: 'relay'`
+//   relay the WebSocket data relay at wss://<relay>/a/<appId>/data
+// TURN and relay also add the app realm on your relay for signaling.
 //
 // Calls use a separate RTCPeerConnection per peer for media, negotiated over the room's reliable
 // `call` action (the room API carries data only).
@@ -23,8 +25,8 @@ import {
   type Transport,
 } from '@beamhop/p2p'
 import { webrtcTransport } from '@beamhop/p2p/webrtc'
-import { nostrSignaling } from '@beamhop/signaling-nostr'
-import { APP_ID, colorFor, type DemoConfig } from '../config'
+import { nostrSignaling, signEvent } from '@beamhop/signaling-nostr'
+import { APP_ID, colorFor, type DemoConfig, needsOwnRelay } from '../config'
 import type {
   ChatMessage,
   DemoPeer,
@@ -82,12 +84,37 @@ export interface BeamhopInternals {
   tickMs?: number
 }
 
-async function turnServersFor(own: NonNullable<DemoConfig['ownRelay']>): Promise<RTCIceServer[]> {
+const NIP98_KIND = 27235
+
+/**
+ * Mints TURN credentials from `POST /a/<appId>/turn-credentials`: with the API key when given,
+ * otherwise with a NIP-98 event signed by the room identity (so link joiners need no key).
+ */
+export async function turnServersFor(
+  own: NonNullable<DemoConfig['ownRelay']>,
+  identity: Pick<Identity, 'pubkey' | 'sign'>,
+  fetchImpl: typeof fetch = fetch,
+): Promise<RTCIceServer[]> {
   const base = own.url.replace(/^ws/, 'http').replace(/\/$/, '')
-  const res = await fetch(`${base}/a/${encodeURIComponent(own.appId)}/turn-credentials`, {
-    method: 'POST',
-    headers: own.apiKey ? { Authorization: `Bearer ${own.apiKey}` } : {},
-  })
+  const url = `${base}/a/${encodeURIComponent(own.appId)}/turn-credentials`
+  let authorization: string
+  if (own.apiKey) {
+    authorization = `Bearer ${own.apiKey}`
+  } else {
+    const ev = await signEvent(
+      {
+        kind: NIP98_KIND,
+        tags: [
+          ['u', url],
+          ['method', 'POST'],
+        ],
+        content: '',
+      },
+      identity,
+    )
+    authorization = `Nostr ${btoa(JSON.stringify(ev))}`
+  }
+  const res = await fetchImpl(url, { method: 'POST', headers: { Authorization: authorization } })
   if (!res.ok) throw new Error(`turn-credentials: HTTP ${res.status}`)
   const body = (await res.json()) as { iceServers: RTCIceServer[] }
   return body.iceServers
@@ -109,31 +136,42 @@ export async function joinBeamhopRoom(
   const log: SignalLogEntry[] = []
   const relays = [...cfg.relays]
   let iceServers = [...cfg.iceServers]
+  let iceTransportPolicy: RTCIceTransportPolicy = 'all'
   let transports: Transport[]
   let appId = APP_ID
 
+  const identity: Identity = await (async () => {
+    const id =
+      internals.identity ?? (cfg.identity === 'nostr' ? nostr() : anonymous({ persist: true }))
+    return 'load' in id ? id.load() : id
+  })()
+
+  const own = needsOwnRelay(cfg.transport) ? cfg.ownRelay : undefined
+  if (needsOwnRelay(cfg.transport) && !own) {
+    throw new Error(`The ${cfg.transport} transport needs a Beamhop relay URL and app id`)
+  }
+  const appRealm = own && `${own.url.replace(/\/$/, '')}/a/${own.appId}`
+  if (own && appRealm) {
+    appId = own.appId
+    relays.unshift(appRealm)
+    try {
+      iceServers = [...iceServers, ...(await turnServersFor(own, identity))]
+      pushCapped(log, { at: Date.now(), direction: 'in', kind: 'turn-credentials' })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      // Forced TURN is useless without credentials; the data relay only loses TURN for calls.
+      if (cfg.transport === 'turn') throw new Error(`Could not get TURN credentials (${msg})`)
+      pushCapped(log, { at: Date.now(), direction: 'in', kind: `turn-credentials failed: ${msg}` })
+    }
+  }
+  if (cfg.transport === 'turn') iceTransportPolicy = 'relay'
+
   if (internals.transports) {
     transports = internals.transports
+  } else if (cfg.transport === 'relay' && appRealm) {
+    transports = [relayTransport({ url: `${appRealm}/data`, appId })]
   } else {
-    const ladder: Transport[] = []
-    if (cfg.ownRelay) {
-      appId = cfg.ownRelay.appId
-      const appRealm = `${cfg.ownRelay.url.replace(/\/$/, '')}/a/${cfg.ownRelay.appId}`
-      relays.unshift(appRealm)
-      try {
-        iceServers = [...iceServers, ...(await turnServersFor(cfg.ownRelay))]
-        pushCapped(log, { at: Date.now(), direction: 'in', kind: 'turn-credentials' })
-      } catch (err) {
-        pushCapped(log, {
-          at: Date.now(),
-          direction: 'in',
-          kind: `turn-credentials failed: ${err instanceof Error ? err.message : err}`,
-        })
-      }
-      ladder.push(relayTransport({ url: `${appRealm}/data`, appId }))
-    }
-    ladder.unshift(webrtcTransport({ iceServers }))
-    transports = ladder
+    transports = [webrtcTransport({ iceServers, iceTransportPolicy })]
   }
 
   // Keep a handle on the signaling adapter so the lobby can show per-relay status.
@@ -143,9 +181,6 @@ export async function joinBeamhopRoom(
     adapter = baseSignaling(ctx)
     return adapter
   }
-
-  const identity =
-    internals.identity ?? (cfg.identity === 'nostr' ? nostr() : anonymous({ persist: true }))
 
   const room = await createRoom({
     appId,
@@ -357,7 +392,7 @@ export async function joinBeamhopRoom(
   }
 
   function newPc(id: Hex): RTCPeerConnection {
-    const pc = new RTCPeerConnection({ iceServers })
+    const pc = new RTCPeerConnection({ iceServers, iceTransportPolicy })
     pcs.set(id, pc)
     // RTCIceCandidate's fields are prototype getters: send the plain init dict, or the codec
     // serializes `{}` and the receiver reads every candidate as end-of-candidates.

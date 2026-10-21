@@ -6,9 +6,10 @@ import {
   memorySignaling,
   memoryTransport,
 } from '@beamhop/p2p'
+import { verifyEvent } from '@beamhop/signaling-nostr'
 import { DEFAULT_ICE_SERVERS, DEFAULT_RELAYS, type DemoConfig } from '../config'
 import type { ChatMessage, CursorUpdate, DemoRoom, FileProgress } from '../p2p'
-import { joinBeamhopRoom } from './beamhop'
+import { joinBeamhopRoom, turnServersFor } from './beamhop'
 
 const rooms: DemoRoom[] = []
 
@@ -18,6 +19,7 @@ function cfg(name: string, roomId: string): DemoConfig {
     password: '',
     name,
     local: false,
+    transport: 'p2p',
     identity: 'anonymous',
     relays: DEFAULT_RELAYS,
     iceServers: DEFAULT_ICE_SERVERS,
@@ -160,5 +162,49 @@ describe('beamhop DemoRoom over the real library (memory transports)', () => {
     const { a, b } = await pair()
     await b.leave()
     await until(() => a.peers().length === 1)
+  })
+})
+
+describe('transport modes', () => {
+  test('turn and relay refuse to start without a Beamhop relay', async () => {
+    for (const transport of ['turn', 'relay'] as const) {
+      await expect(
+        joinBeamhopRoom({ ...cfg('a', 'tr'), transport }, { identity: anonymous() }),
+      ).rejects.toThrow(/needs a Beamhop relay/)
+    }
+  })
+
+  test('TURN credentials: Bearer API key, else a NIP-98 event signed by the room identity', async () => {
+    const calls: { url: string; auth: string }[] = []
+    const fakeFetch = (async (url: string, init: RequestInit) => {
+      calls.push({ url, auth: new Headers(init.headers).get('authorization') ?? '' })
+      return Response.json({ iceServers: [{ urls: 'turn:relay.example:3478' }], ttl: 60 })
+    }) as unknown as typeof fetch
+    const id = await anonymous().load()
+    const own = { url: 'wss://relay.example/', appId: 'my app' }
+
+    const servers = await turnServersFor({ ...own, apiKey: 'k1' }, id, fakeFetch)
+    expect(servers).toEqual([{ urls: 'turn:relay.example:3478' }])
+    expect(calls[0]).toEqual({
+      url: 'https://relay.example/a/my%20app/turn-credentials',
+      auth: 'Bearer k1',
+    })
+
+    await turnServersFor(own, id, fakeFetch)
+    const auth = calls[1]?.auth ?? ''
+    expect(auth.startsWith('Nostr ')).toBe(true)
+    const ev = JSON.parse(atob(auth.slice(6)))
+    expect(verifyEvent(ev)).toBe(true)
+    expect(ev).toMatchObject({ kind: 27235, pubkey: id.pubkey })
+    expect(ev.tags).toContainEqual(['u', 'https://relay.example/a/my%20app/turn-credentials'])
+    expect(ev.tags).toContainEqual(['method', 'POST'])
+  })
+
+  test('TURN credential errors surface the HTTP status', async () => {
+    const id = await anonymous().load()
+    const deny = (async () => new Response('no', { status: 401 })) as unknown as typeof fetch
+    await expect(
+      turnServersFor({ url: 'wss://relay.example', appId: 'a' }, id, deny),
+    ).rejects.toThrow('turn-credentials: HTTP 401')
   })
 })

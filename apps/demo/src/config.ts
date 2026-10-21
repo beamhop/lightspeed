@@ -10,6 +10,23 @@ export const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.cloudflare.com:3478' },
 ]
 
+/**
+ * How peers carry room data: straight WebRTC over public STUN, WebRTC forced through TURN
+ * (`iceTransportPolicy: 'relay'`), or the WebSocket data relay. TURN and the data relay need a
+ * Beamhop relay (`ownRelay`).
+ */
+export type TransportMode = 'p2p' | 'turn' | 'relay'
+
+export const TRANSPORT_MODES: readonly TransportMode[] = ['p2p', 'turn', 'relay']
+
+export function needsOwnRelay(mode: TransportMode): boolean {
+  return mode !== 'p2p'
+}
+
+function parseTransport(v: string | null | undefined): TransportMode | undefined {
+  return TRANSPORT_MODES.find((m) => m === v)
+}
+
 export interface DemoConfig {
   roomId: string
   password: string
@@ -19,6 +36,7 @@ export interface DemoConfig {
   identity: 'anonymous' | 'nostr'
   relays: string[]
   iceServers: RTCIceServer[]
+  transport: TransportMode
   /** "Use your own relay": base https/wss URL of a Beamhop relay, plus the app id on it. */
   ownRelay?: { url: string; appId: string; apiKey?: string } | undefined
 }
@@ -73,15 +91,35 @@ export function readConfig(search: string, stored: Partial<DemoConfig> = {}): De
         .map(normalizeRelayUrl)
         .filter((r): r is string => !!r)
     : (stored.relays ?? DEFAULT_RELAYS)
+  // A shared room link pins the sharer's transport (absent = p2p) so both sides pick the same one.
+  const roomId = q.get('room') ?? ''
+  const transport =
+    parseTransport(q.get('transport')) ??
+    (roomId ? 'p2p' : (parseTransport(stored.transport) ?? 'p2p'))
+  const linkRelay = normalizeRelayUrl(q.get('relay') ?? '')
+  const linkApp = q.get('app')
+  const ownRelay =
+    linkRelay && linkApp
+      ? {
+          url: linkRelay,
+          appId: linkApp,
+          ...(stored.ownRelay?.apiKey &&
+          stored.ownRelay.url === linkRelay &&
+          stored.ownRelay.appId === linkApp
+            ? { apiKey: stored.ownRelay.apiKey }
+            : {}),
+        }
+      : stored.ownRelay
   return {
-    roomId: q.get('room') ?? '',
+    roomId,
     password: q.get('pw') ?? '',
     name: q.get('name') ?? stored.name ?? randomName(),
     local: q.get('local') === '1',
     identity: q.get('id') === 'nostr' ? 'nostr' : (stored.identity ?? 'anonymous'),
     relays: relays.length ? relays : DEFAULT_RELAYS,
     iceServers: DEFAULT_ICE_SERVERS,
-    ownRelay: stored.ownRelay,
+    transport,
+    ownRelay,
   }
 }
 
@@ -103,10 +141,14 @@ export function parseRoomInput(input: string): { roomId: string; password?: stri
   return /^[\w-]{1,64}$/.test(s) ? { roomId: s } : null
 }
 
-/** Shareable link for a room; keeps `local=1` so tab-local demos stay local. */
+/**
+ * Shareable link for a room; keeps `local=1` so tab-local demos stay local, and the transport plus
+ * relay/app (never the API key) so joiners use the same path.
+ */
 export function roomLink(
   base: string,
-  cfg: Pick<DemoConfig, 'roomId' | 'password' | 'local'>,
+  cfg: Pick<DemoConfig, 'roomId' | 'password' | 'local'> &
+    Partial<Pick<DemoConfig, 'transport' | 'ownRelay'>>,
 ): string {
   const u = new URL(base)
   u.search = ''
@@ -114,5 +156,10 @@ export function roomLink(
   u.searchParams.set('room', cfg.roomId)
   if (cfg.password) u.searchParams.set('pw', cfg.password)
   if (cfg.local) u.searchParams.set('local', '1')
+  else if (cfg.transport && needsOwnRelay(cfg.transport) && cfg.ownRelay) {
+    u.searchParams.set('transport', cfg.transport)
+    u.searchParams.set('relay', cfg.ownRelay.url)
+    u.searchParams.set('app', cfg.ownRelay.appId)
+  }
   return u.toString()
 }
