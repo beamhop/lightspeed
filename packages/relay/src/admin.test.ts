@@ -443,6 +443,28 @@ describe('nostr, turn, bans, nip11, settings, backups', () => {
     })
   })
 
+  test('settings: SPA form toggles /metrics without a restart', async () => {
+    const g = await api(t.base, '/api/admin/settings', { cookie })
+    expect(g.body.metrics).toEqual({ enabled: true, path: '/metrics', tokenSet: false })
+    expect(g.body.tls.auto).toBeUndefined()
+    expect(g.body.logging.json).toBeUndefined()
+    const off = await api(t.base, '/api/admin/settings', {
+      method: 'PUT',
+      cookie,
+      body: { ...g.body, metrics: { ...g.body.metrics, enabled: false } },
+    })
+    expect(off.status).toBe(200)
+    expect(off.body.metrics.enabled).toBe(false)
+    expect(off.body.restartRequired).toEqual([])
+    expect((await fetch(`${t.base}/metrics`)).status).toBe(404)
+    await api(t.base, '/api/admin/settings', {
+      method: 'PUT',
+      cookie,
+      body: { ...g.body, metrics: { enabled: true } },
+    })
+    expect((await fetch(`${t.base}/metrics`)).status).toBe(200)
+  })
+
   test('backups', async () => {
     const r = await api(t.base, '/api/admin/backups', { cookie, body: {} })
     expect(r.status).toBe(201)

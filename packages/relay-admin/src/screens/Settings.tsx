@@ -3,6 +3,7 @@ import { useEffect, useState } from 'preact/hooks'
 import { Async, useResource } from '../components/Async'
 import { Button, Card, Field, Input, PageHeader, Select, Toggle } from '../components/ui'
 import { api, isMock, stats } from '../ctx'
+import { PAGE_HELP } from '../help'
 import { performWrite, session, toast } from '../store'
 import type { Settings as SettingsT } from '../types'
 
@@ -45,6 +46,7 @@ export function Settings() {
       <PageHeader
         title="Settings"
         subtitle="Listeners, TLS, logging, metrics and backups"
+        intro={PAGE_HELP.settings}
         actions={
           <Button
             onClick={async () => {
@@ -59,7 +61,11 @@ export function Settings() {
           </Button>
         }
       />
-      <Card title="Appearance" class="mb-4">
+      <Card
+        title="Appearance"
+        class="mb-4"
+        description="How this admin UI looks for you. It does not affect the relay or other admins."
+      >
         <Toggle
           label="Light theme"
           checked={theme === 'light'}
@@ -92,42 +98,64 @@ function SettingsForm({ saved, onSaved }: { saved: SettingsT; onSaved: (s: Setti
 
   return (
     <div class="grid lg:grid-cols-2 gap-4">
-      <Card title="Listeners and ports">
+      <Card
+        title="Listeners and ports"
+        description="The network ports the relay listens on. Your firewall and any load balancer must forward these. Port changes apply after a restart; the public URL applies immediately."
+      >
         <div class="grid grid-cols-2 gap-3">
           <div class="col-span-2">
-            <Field label="Public URL">
+            <Field
+              label="Public URL"
+              hint="e.g. https://relay.example.com"
+              help="The address users and apps reach the relay at. It is used in NIP-42 AUTH challenges, NIP-98 checks, the URLs shown on the Apps page and links on /pay. Must match what clients connect to, including https."
+            >
               <Input value={s.publicUrl} onValue={(v) => setS({ ...s, publicUrl: v })} />
             </Field>
           </div>
-          <Field label="HTTPS / WSS">
+          <Field
+            label="HTTPS / WSS"
+            help="Main port for the Nostr relay, data relay, media, /pay and this admin UI. Normally 443."
+          >
             <Input
               type="number"
               value={String(s.listeners.https)}
               onValue={(v) => setS({ ...s, listeners: { ...s.listeners, https: num(v) } })}
             />
           </Field>
-          <Field label="TURN UDP">
+          <Field
+            label="TURN UDP"
+            help="STUN/TURN over UDP, the fastest path. The standard port is 3478."
+          >
             <Input
               type="number"
               value={String(s.listeners.turnUdp)}
               onValue={(v) => setS({ ...s, listeners: { ...s.listeners, turnUdp: num(v) } })}
             />
           </Field>
-          <Field label="TURN TCP">
+          <Field
+            label="TURN TCP"
+            help="TURN over TCP for networks that block UDP. Usually also 3478."
+          >
             <Input
               type="number"
               value={String(s.listeners.turnTcp)}
               onValue={(v) => setS({ ...s, listeners: { ...s.listeners, turnTcp: num(v) } })}
             />
           </Field>
-          <Field label="TURNS (TLS)">
+          <Field
+            label="TURNS (TLS)"
+            help="TURN over TLS (turns:), which looks like HTTPS traffic and gets through strict corporate firewalls. Standard port 5349; 0 turns it off. Needs the TLS certificate below."
+          >
             <Input
               type="number"
               value={String(s.listeners.turnTls)}
               onValue={(v) => setS({ ...s, listeners: { ...s.listeners, turnTls: num(v) } })}
             />
           </Field>
-          <Field label="Relay port range">
+          <Field
+            label="Relay port range"
+            help="UDP ports TURN opens for relayed traffic, one per allocation. The range limits how many simultaneous allocations are possible and must be open in your firewall."
+          >
             <div class="flex gap-1 items-center">
               <Input
                 type="number"
@@ -154,21 +182,25 @@ function SettingsForm({ saved, onSaved }: { saved: SettingsT; onSaved: (s: Setti
           </Field>
         </div>
       </Card>
-      <Card title="TLS">
+      <Card
+        title="TLS"
+        description="The certificate that secures HTTPS, WSS and TURNS. Leave both paths empty when a reverse proxy (Caddy, nginx) terminates TLS in front of the relay. The relay reloads the files when they change, so renewals (e.g. certbot) need no restart; changing the paths does."
+      >
         <div class="space-y-3">
-          <Toggle
-            label="Automatic certificates (ACME)"
-            checked={s.tls.auto}
-            onChange={(v) => setS({ ...s, tls: { ...s.tls, auto: v } })}
-          />
-          <Field label="Certificate path">
+          <Field
+            label="Certificate path"
+            help="Path on the server to a PEM certificate chain (fullchain.pem from Let’s Encrypt/certbot)."
+          >
             <Input
               value={s.tls.cert}
               onValue={(v) => setS({ ...s, tls: { ...s.tls, cert: v } })}
               class="font-mono"
             />
           </Field>
-          <Field label="Key path">
+          <Field
+            label="Key path"
+            help="Path on the server to the PEM private key matching the certificate. The relay process must be able to read it."
+          >
             <Input
               value={s.tls.key}
               onValue={(v) => setS({ ...s, tls: { ...s.tls, key: v } })}
@@ -177,9 +209,16 @@ function SettingsForm({ saved, onSaved }: { saved: SettingsT; onSaved: (s: Setti
           </Field>
         </div>
       </Card>
-      <Card title="Logging and metrics">
+      <Card
+        title="Logging and metrics"
+        description="How much the relay writes to its logs, and whether it exposes numbers for monitoring tools such as Prometheus and Grafana."
+      >
         <div class="grid grid-cols-2 gap-3 items-end">
-          <Field label="Log level">
+          <Field
+            label="Log level"
+            hint="Applies immediately."
+            help="debug: everything, for troubleshooting (noisy). info: normal operation. warn: only problems. error: only failures. Logs are always JSON lines on stdout, ready for journald, Loki or a cloud log service."
+          >
             <Select
               value={s.logging.level}
               onValue={(v) => setS({ ...s, logging: { ...s.logging, level: v } })}
@@ -190,34 +229,45 @@ function SettingsForm({ saved, onSaved }: { saved: SettingsT; onSaved: (s: Setti
             />
           </Field>
           <Toggle
-            label="JSON logs"
-            checked={s.logging.json}
-            onChange={(v) => setS({ ...s, logging: { ...s.logging, json: v } })}
-          />
-          <Toggle
             label="Prometheus metrics"
+            help="Expose counters (events, clients, TURN bandwidth, …) at the metrics path for Prometheus to scrape. When off, the path returns 404. Applies immediately."
             checked={s.metrics.enabled}
             onChange={(v) => setS({ ...s, metrics: { ...s.metrics, enabled: v } })}
           />
-          <Field label="Metrics path">
-            <Input
-              value={s.metrics.path}
-              onValue={(v) => setS({ ...s, metrics: { ...s.metrics, path: v } })}
-            />
+          <Field
+            label="Metrics path"
+            hint={
+              s.metrics.tokenSet
+                ? 'Protected by a bearer token (metrics.token).'
+                : 'Public. Set metrics.token in the config file to require a bearer token.'
+            }
+            help="The URL Prometheus scrapes. It is fixed by the relay. The token is a secret, so it is set in beamhop-relay.toml or BEAMHOP_METRICS_TOKEN rather than here."
+          >
+            <Input value={s.metrics.path} readOnly class="font-mono opacity-70" />
           </Field>
         </div>
         <Button class="mt-3" size="sm" onClick={() => downloadGrafana(s.metrics.path)}>
           Download Grafana dashboard
         </Button>
+        <p class="text-[11px] text-muted mt-1">
+          A ready-made dashboard JSON: in Grafana choose Dashboards → New → Import and upload it.
+        </p>
       </Card>
-      <Card title="Backups">
+      <Card
+        title="Backups"
+        description="Automatic daily snapshots of the relay databases into the backup directory on this server. Copy that directory off the machine (rsync, restic, a volume snapshot) so a lost server does not take its backups with it. You can also run one by hand on Nostr → Backup."
+      >
         <div class="grid grid-cols-2 gap-3 items-end">
           <Toggle
             label="Nightly backups"
+            help="Take a snapshot once a day at the hour below."
             checked={s.backups.enabled}
             onChange={(v) => setS({ ...s, backups: { ...s.backups, enabled: v } })}
           />
-          <Field label="Hour (UTC)">
+          <Field
+            label="Hour (UTC)"
+            help="Hour of day, 0–23 in UTC, when the backup runs. Pick a quiet time for your users."
+          >
             <Input
               type="number"
               min={0}
@@ -228,18 +278,14 @@ function SettingsForm({ saved, onSaved }: { saved: SettingsT; onSaved: (s: Setti
               }
             />
           </Field>
-          <Field label="Retention (days)">
+          <Field
+            label="Retention (days)"
+            help="Backups older than this are deleted automatically to save disk space."
+          >
             <Input
               type="number"
               value={String(s.backups.retentionDays)}
               onValue={(v) => setS({ ...s, backups: { ...s.backups, retentionDays: num(v) } })}
-            />
-          </Field>
-          <Field label="S3 URL (optional)">
-            <Input
-              value={s.backups.s3Url ?? ''}
-              onValue={(v) => setS({ ...s, backups: { ...s.backups, s3Url: v || undefined } })}
-              placeholder="s3://bucket/prefix"
             />
           </Field>
         </div>

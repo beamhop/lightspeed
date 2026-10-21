@@ -337,10 +337,11 @@ export interface Settings {
     turnTls: number
     relayPorts: [number, number]
   }
-  tls: { cert: string; key: string; auto: boolean }
-  logging: { level: 'debug' | 'info' | 'warn' | 'error'; json: boolean }
-  metrics: { enabled: boolean; path: string }
-  backups: { enabled: boolean; hourUtc: number; retentionDays: number; s3Url?: string }
+  tls: { cert: string; key: string }
+  logging: { level: 'debug' | 'info' | 'warn' | 'error' }
+  /** `path` is fixed by the relay; `tokenSet` reports whether metrics.token is configured. */
+  metrics: { enabled: boolean; path: string; tokenSet?: boolean }
+  backups: { enabled: boolean; hourUtc: number; retentionDays: number }
 }
 
 export interface Backup {

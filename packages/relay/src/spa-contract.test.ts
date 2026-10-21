@@ -235,6 +235,10 @@ describe('admin SPA client against the relay', () => {
     expect(next.logging.level).toBe('warn')
     expect(next.backups.retentionDays).toBe(7)
     expect(t.relay.ctx.config.backups.retentionDays).toBe(7)
+    const off = await api.settings.put({ ...next, metrics: { ...next.metrics, enabled: false } })
+    expect(off.metrics).toEqual({ enabled: false, path: '/metrics', tokenSet: false })
+    expect(t.relay.ctx.config.metrics.enabled).toBe(false)
+    await api.settings.put({ ...off, metrics: { ...off.metrics, enabled: true } })
   })
 
   test('backups and alert ack', async () => {

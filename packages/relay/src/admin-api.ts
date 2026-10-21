@@ -683,9 +683,10 @@ function spaSettings(c: RelayConfig) {
       turnTls: c.turn.tlsPort,
       relayPorts: [c.turn.relayPortMin, c.turn.relayPortMax] as [number, number],
     },
-    tls: { cert: c.http.tlsCert, key: c.http.tlsKey, auto: false },
-    logging: { level: c.log.level, json: true },
-    metrics: { enabled: true, path: '/metrics' },
+    tls: { cert: c.http.tlsCert, key: c.http.tlsKey },
+    logging: { level: c.log.level },
+    // The path is fixed; the token is a secret and is only reported as set or not.
+    metrics: { enabled: c.metrics.enabled, path: '/metrics', tokenSet: !!c.metrics.token },
     backups: {
       enabled: c.backups.enabled,
       hourUtc: c.backups.hour,
@@ -705,6 +706,7 @@ type Spa = {
   }
   tls?: { cert?: string; key?: string }
   logging?: { level?: string }
+  metrics?: { enabled?: boolean }
   backups?: { enabled?: boolean; hourUtc?: number; retentionDays?: number }
 }
 
@@ -726,6 +728,7 @@ function fromSpaSettings(s: Spa, c: RelayConfig): Record<string, unknown> {
   set('http', 'tlsCert', s.tls?.cert, c.http.tlsCert)
   set('http', 'tlsKey', s.tls?.key, c.http.tlsKey)
   set('log', 'level', s.logging?.level, c.log.level)
+  set('metrics', 'enabled', s.metrics?.enabled, c.metrics.enabled)
   set('backups', 'enabled', s.backups?.enabled, c.backups.enabled)
   set('backups', 'hour', s.backups?.hourUtc, c.backups.hour)
   set('backups', 'retentionDays', s.backups?.retentionDays, c.backups.retentionDays)

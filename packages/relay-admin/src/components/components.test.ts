@@ -2,10 +2,12 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { GlobalRegistrator } from '@happy-dom/global-registrator'
 import { h, render } from 'preact'
+import { PAGE_HELP } from '../help'
 import { confirm, pendingConfirm, performWrite, revealOnce } from '../store'
 import { ConfirmDialog, RevealOnceModal } from './Dialogs'
+import { NAV } from './Layout'
 import { Mascot, MascotMessage } from './Mascot'
-import { DataTable } from './ui'
+import { DataTable, Field, InfoTip, Input, PageIntro, Tabs } from './ui'
 
 const tick = () => new Promise((r) => setTimeout(r, 0))
 
@@ -127,5 +129,93 @@ describe('DataTable', () => {
     expect(root.querySelectorAll('tbody tr')).toHaveLength(2)
     expect(root.querySelectorAll('ul li')).toHaveLength(2)
     expect(root.querySelector('tbody')?.textContent).toContain('2.2.2.2')
+  })
+})
+
+describe('Explanations', () => {
+  test('every nav screen has a what / why / how intro', () => {
+    const ids = Object.keys(PAGE_HELP)
+    for (const n of NAV) {
+      const key = n.to === '/' ? 'overview' : n.to.slice(1)
+      expect(ids).toContain(key)
+      const h = PAGE_HELP[key as keyof typeof PAGE_HELP]
+      expect(h.what).toBeTruthy()
+      expect(h.why).toBeTruthy()
+      expect(h.how.length).toBeGreaterThan(0)
+    }
+  })
+
+  test('PageIntro collapses and remembers it per browser', async () => {
+    localStorage.clear()
+    render(h(PageIntro, { help: PAGE_HELP.turn }), root)
+    expect(root.textContent).toContain('How to use it')
+    click(root.querySelector('[data-intro="turn"] button'))
+    await tick()
+    expect(root.textContent).not.toContain('How to use it')
+    expect(localStorage.getItem('bh-admin-intro:turn')).toBe('hidden')
+    render(null, root)
+    render(h(PageIntro, { help: PAGE_HELP.turn }), root)
+    expect(root.querySelector('[data-intro="turn"] button')?.getAttribute('aria-expanded')).toBe(
+      'false',
+    )
+    click(root.querySelector('[data-intro="turn"] button'))
+    await tick()
+    expect(localStorage.getItem('bh-admin-intro:turn')).toBeNull()
+  })
+
+  test('InfoTip toggles on tap without focusing the field it labels', async () => {
+    render(
+      h(Field, {
+        label: 'Port',
+        help: 'Where TURN listens',
+        children: h(Input, { value: '3478' }),
+      }),
+      root,
+    )
+    const tip = root.querySelector('[data-infotip]') as HTMLElement
+    expect(tip.getAttribute('aria-label')).toBe('What is Port?')
+    expect(root.querySelector('[role="tooltip"]')).toBeNull()
+    click(tip)
+    await tick()
+    expect(root.querySelector('[role="tooltip"]')?.textContent).toBe('Where TURN listens')
+    expect(document.activeElement).not.toBe(root.querySelector('input'))
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await tick()
+    expect(root.querySelector('[role="tooltip"]')).toBeNull()
+  })
+
+  test('InfoTip in a clickable row does not trigger the row', async () => {
+    let clicks = 0
+    render(
+      h(DataTable<{ id: string }>, {
+        rows: [{ id: 'a' }],
+        rowKey: (r) => r.id,
+        onRowClick: () => clicks++,
+        columns: [{ key: 'id', label: 'ID', help: 'The id', render: (r) => r.id }],
+      }),
+      root,
+    )
+    click(root.querySelector('ul [data-infotip]'))
+    await tick()
+    expect(clicks).toBe(0)
+    render(h(InfoTip, { label: 'Standalone', children: 'ok' }), root)
+    expect(root.querySelector('[data-infotip]')?.getAttribute('aria-label')).toBe(
+      'What is Standalone?',
+    )
+  })
+
+  test('Tabs explain the active tab', () => {
+    render(
+      h(Tabs<'a' | 'b'>, {
+        value: 'b',
+        onChange: () => {},
+        tabs: [
+          { id: 'a', label: 'A', description: 'about A' },
+          { id: 'b', label: 'B', description: 'about B' },
+        ],
+      }),
+      root,
+    )
+    expect(root.querySelector('[data-tab-description]')?.textContent).toBe('about B')
   })
 })

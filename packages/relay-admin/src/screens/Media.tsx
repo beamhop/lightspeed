@@ -16,6 +16,7 @@ import {
 } from '../components/ui'
 import { api, isMock } from '../ctx'
 import { formatAgo, formatBytes, parsePubkey, percent, shortHex, shortNpub } from '../format'
+import { PAGE_HELP } from '../help'
 import { performWrite } from '../store'
 import type { MediaBlob } from '../types'
 
@@ -67,17 +68,40 @@ export function Media() {
 
   return (
     <>
-      <PageHeader title="Media" subtitle="Blossom blobs by app and pubkey" />
+      <PageHeader
+        title="Media"
+        subtitle="Blossom blobs by app and pubkey"
+        intro={PAGE_HELP.media}
+      />
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        <Stat label="Blobs (listed)" value={blobs.data?.length ?? '—'} />
-        <Stat label="Size (listed)" value={formatBytes(total)} tone="violet" />
+        <Stat
+          label="Blobs (listed)"
+          value={blobs.data?.length ?? '—'}
+          help="Number of files matching the current filter."
+        />
+        <Stat
+          label="Size (listed)"
+          value={formatBytes(total)}
+          tone="violet"
+          help="Combined size of the files matching the current filter."
+        />
         {[...byType.entries()].slice(0, 2).map(([t, s]) => (
-          <Stat key={t} label={t} value={formatBytes(s)} tone="ok" />
+          <Stat
+            key={t}
+            label={t}
+            value={formatBytes(s)}
+            tone="ok"
+            help={`Space taken by ${t} files in the current list. The two largest media families are shown.`}
+          />
         ))}
       </div>
-      <Card class="mb-4">
+      <Card
+        class="mb-4"
+        title="Filter"
+        description="Leave both empty to see recent uploads from everyone."
+      >
         <form onSubmit={apply} class="grid gap-3 pt-3 sm:grid-cols-[1fr_1fr_auto] items-end">
-          <Field label="App">
+          <Field label="App" help="Only show files uploaded with this app’s credentials.">
             <Select
               value={app}
               onValue={setApp}
@@ -87,7 +111,11 @@ export function Media() {
               ]}
             />
           </Field>
-          <Field label="Pubkey" error={pkErr}>
+          <Field
+            label="Pubkey"
+            error={pkErr}
+            help="Only show files owned by this Nostr key (the uploader). Paste an npub or hex key, e.g. from a report about a user."
+          >
             <Input value={pubkey} onValue={setPubkey} placeholder="npub1… or hex" />
           </Field>
           <Button type="submit" variant="primary">
@@ -95,7 +123,11 @@ export function Media() {
           </Button>
         </form>
       </Card>
-      <Card title="Blobs" class="mb-4">
+      <Card
+        title="Blobs"
+        class="mb-4"
+        description="Deleting a blob frees its space and makes its URL return 404 on this server. Copies mirrored on other Blossom servers stay online."
+      >
         <Async res={blobs} emptyTitle="No blobs for this filter">
           {(list) => (
             <ul class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -139,7 +171,10 @@ export function Media() {
           )}
         </Async>
       </Card>
-      <Card title="Storage quotas per app">
+      <Card
+        title="Storage quotas per app"
+        description="Media stored by each app against its storage limit. Click an app to change its quota, maximum file size or allowed file types."
+      >
         <Async res={apps} emptyTitle="No apps">
           {(list) => (
             <ul class="space-y-3">

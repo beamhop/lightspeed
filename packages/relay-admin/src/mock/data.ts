@@ -321,10 +321,9 @@ export function createMockDb(now = Date.now(), seed = 7): MockDb {
     tls: {
       cert: '/etc/beamhop/tls/fullchain.pem',
       key: '/etc/beamhop/tls/privkey.pem',
-      auto: true,
     },
-    logging: { level: 'info', json: true },
-    metrics: { enabled: true, path: '/metrics' },
+    logging: { level: 'info' },
+    metrics: { enabled: true, path: '/metrics', tokenSet: false },
     backups: { enabled: true, hourUtc: 3, retentionDays: 14 },
   }
 

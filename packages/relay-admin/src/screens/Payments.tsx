@@ -16,6 +16,7 @@ import {
 } from '../components/ui'
 import { api } from '../ctx'
 import { formatAgo, formatDate, formatSats, shortHex, shortNpub } from '../format'
+import { PAGE_HELP } from '../help'
 import { currentQuery, navigate } from '../router'
 import { performWrite } from '../store'
 import type { InvoiceStatus } from '../types'
@@ -38,19 +39,52 @@ export function Payments() {
   const pending = invoices.data?.filter((i) => i.status === 'pending').length
   return (
     <>
-      <PageHeader title="Payments" subtitle="Lightning plans for paid write access" />
+      <PageHeader
+        title="Payments"
+        subtitle="Lightning plans for paid write access"
+        intro={PAGE_HELP.payments}
+      />
       <div class="grid grid-cols-2 gap-3 mb-4">
-        <Stat label="Revenue (listed)" value={formatSats(revenue)} />
-        <Stat label="Pending invoices" value={pending ?? '—'} tone="warn" />
+        <Stat
+          label="Revenue (listed)"
+          value={formatSats(revenue)}
+          help="Sum of paid invoices in the Invoices list, in satoshis (1 BTC = 100,000,000 sats)."
+        />
+        <Stat
+          label="Pending invoices"
+          value={pending ?? '—'}
+          tone="warn"
+          help="Invoices created on /pay that have not been paid yet. They expire on their own if nobody pays."
+        />
       </div>
       <Tabs<Tab>
         value={tab}
         onChange={(t) => navigate(`/payments?tab=${t}`, { replace: true })}
         tabs={[
-          { id: 'plans', label: 'Plans' },
-          { id: 'invoices', label: 'Invoices' },
-          { id: 'paid', label: 'Paid pubkeys' },
-          { id: 'wallet', label: 'Wallet (NWC)' },
+          {
+            id: 'plans',
+            label: 'Plans',
+            description:
+              'What users can buy. Each plan is a price for a period of write access to the public relay, listed on the /pay page.',
+          },
+          {
+            id: 'invoices',
+            label: 'Invoices',
+            description:
+              'Every Lightning invoice the relay issued, with its status. Paid invoices grant access automatically; there is nothing to approve.',
+          },
+          {
+            id: 'paid',
+            label: 'Paid pubkeys',
+            description:
+              'Nostr keys that bought a plan and when their access ends. Expired keys fall back to the normal public relay policy.',
+          },
+          {
+            id: 'wallet',
+            label: 'Wallet (NWC)',
+            description:
+              'The Lightning wallet that receives payments. The relay never holds funds itself; it asks your wallet to create invoices and watches for payment.',
+          },
         ]}
       />
       <div class="pt-4">
@@ -67,6 +101,7 @@ export function Payments() {
                     {
                       key: 'pk',
                       label: 'Pubkey',
+                      help: 'The Nostr key that will get write access once this invoice is paid.',
                       render: (i) => <Mono>{shortNpub(i.pubkey)}</Mono>,
                     },
                     { key: 'plan', label: 'Plan', render: (i) => i.planId },
@@ -74,6 +109,7 @@ export function Payments() {
                     {
                       key: 'st',
                       label: 'Status',
+                      help: 'pending: waiting for payment · paid: access granted · expired: not paid in time · refunded: money returned.',
                       render: (i) => <Badge tone={STATUS_TONE[i.status]}>{i.status}</Badge>,
                     },
                   ]}
@@ -128,6 +164,7 @@ function Plans() {
   return (
     <Card
       title="Plans"
+      description="With no active plans, writing to the public relay stays free (subject to policy). Add a plan to require payment."
       actions={
         <Button variant="primary" size="sm" onClick={() => setOpen(true)}>
           New plan
@@ -155,6 +192,7 @@ function Plans() {
         open={open}
         onClose={() => setOpen(false)}
         title="New plan"
+        description="Creates a plan users can buy on /pay. Paying it lets their pubkey publish to the public relay for the chosen number of days."
         footer={
           <>
             <Button onClick={() => setOpen(false)}>Cancel</Button>
@@ -165,11 +203,11 @@ function Plans() {
         }
       >
         <div class="space-y-3">
-          <Field label="Name">
+          <Field label="Name" hint="Shown to buyers, e.g. “Monthly” or “Supporter”.">
             <Input value={form.name} onValue={(v) => setForm({ ...form, name: v })} />
           </Field>
           <div class="grid grid-cols-2 gap-3">
-            <Field label="Price (sats)">
+            <Field label="Price (sats)" help="Price in satoshis (100,000,000 sats = 1 BTC).">
               <Input
                 type="number"
                 min={0}
@@ -177,7 +215,7 @@ function Plans() {
                 onValue={(v) => setForm({ ...form, priceSats: v })}
               />
             </Field>
-            <Field label="Period (days)">
+            <Field label="Period (days)" help="How long write access lasts after payment.">
               <Input
                 type="number"
                 min={1}
@@ -186,7 +224,7 @@ function Plans() {
               />
             </Field>
           </div>
-          <Field label="Description">
+          <Field label="Description" hint="Optional. What buyers get, shown on /pay.">
             <Input value={form.description} onValue={(v) => setForm({ ...form, description: v })} />
           </Field>
         </div>
@@ -207,10 +245,16 @@ function Paid() {
             columns={[
               { key: 'pk', label: 'Pubkey', render: (p) => <Mono>{shortNpub(p.pubkey)}</Mono> },
               { key: 'plan', label: 'Plan', render: (p) => p.planId },
-              { key: 'since', label: 'Since', render: (p) => formatAgo(p.since) },
+              {
+                key: 'since',
+                label: 'Since',
+                help: 'When the payment that started this access was received.',
+                render: (p) => formatAgo(p.since),
+              },
               {
                 key: 'exp',
                 label: 'Expires',
+                help: 'When write access ends unless the user pays again.',
                 render: (p) =>
                   p.expiresAt * 1000 < Date.now() ? (
                     <Badge tone="danger">expired</Badge>
@@ -235,7 +279,10 @@ function Wallet() {
     <Async res={res} empty={() => false}>
       {(nwc) => (
         <div class="grid md:grid-cols-2 gap-4">
-          <Card title="Nostr Wallet Connect">
+          <Card
+            title="Nostr Wallet Connect"
+            description="NWC lets the relay talk to your Lightning wallet over Nostr to create invoices and detect payments. Create a connection in your wallet (Alby Hub, Mutiny, etc.) with permission to make and look up invoices, then paste its URI here."
+          >
             <div class="flex items-center gap-2 mb-3">
               <Badge tone={nwc.connected ? 'ok' : 'danger'}>
                 {nwc.connected ? 'connected' : 'disconnected'}
@@ -265,6 +312,7 @@ function Wallet() {
             <Field
               label="Connection URI"
               hint="nostr+walletconnect://… from Alby Hub, Mutiny, etc. Stored encrypted."
+              help="Treat this URI like a password: it contains a secret that controls the wallet connection. Give it receive-only permissions if your wallet allows."
             >
               <Input
                 value={uri}
@@ -321,7 +369,10 @@ function Wallet() {
               )}
             </div>
           </Card>
-          <Card title="Lightning address / LNURL">
+          <Card
+            title="Lightning address / LNURL"
+            description="A Lightning address (like an email address for payments) where people can send tips or pay manually. It is shown on /pay and advertised in your NIP-11 document."
+          >
             <p class="text-sm text-muted mb-3">
               Current: <Mono>{nwc.lnurl ?? 'not set'}</Mono>
             </p>

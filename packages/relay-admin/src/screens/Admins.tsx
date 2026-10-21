@@ -16,6 +16,7 @@ import {
 } from '../components/ui'
 import { api } from '../ctx'
 import { formatAgo, formatDate, parsePubkey, shortNpub } from '../format'
+import { PAGE_HELP } from '../help'
 import { currentQuery, navigate } from '../router'
 import { performWrite, revealOnce, session } from '../store'
 import type { Admin, AdminRole } from '../types'
@@ -33,14 +34,30 @@ export function Admins() {
       <PageHeader
         title="Admins"
         subtitle="Who can run this relay, their sessions and every action they took"
+        intro={PAGE_HELP.admins}
       />
       <Tabs<Tab>
         value={tab}
         onChange={(t) => navigate(`/admins?tab=${t}`, { replace: true })}
         tabs={[
-          { id: 'admins', label: 'Admins' },
-          { id: 'sessions', label: 'Sessions' },
-          { id: 'audit', label: 'Audit log' },
+          {
+            id: 'admins',
+            label: 'Admins',
+            description:
+              'Everyone who can sign in here. Owners can also add and remove admins; admins manage everything else.',
+          },
+          {
+            id: 'sessions',
+            label: 'Sessions',
+            description:
+              'Browsers and devices that are signed in right now. Revoke any you do not recognise, or a device that was lost.',
+          },
+          {
+            id: 'audit',
+            label: 'Audit log',
+            description:
+              'An append-only record of every change made through the admin UI or API: what was done, to what, by whom and when. It cannot be edited from here.',
+          },
         ]}
       />
       <div class="pt-4">
@@ -125,6 +142,7 @@ function AdminList() {
                 {
                   key: 'role',
                   label: 'Role',
+                  help: 'owner: full control including managing admins. admin: everything except adding or removing admins.',
                   render: (a) => (
                     <Badge tone={a.role === 'owner' ? 'violet' : 'muted'}>{a.role}</Badge>
                   ),
@@ -132,6 +150,7 @@ function AdminList() {
                 {
                   key: 'method',
                   label: 'Sign-in',
+                  help: 'Nostr admins sign a challenge with their key (no password stored here). Password admins also need a 6-digit authenticator code.',
                   render: (a) => (a.pubkey ? 'Nostr' : `Password${a.totpEnabled ? ' + TOTP' : ''}`),
                 },
                 {
@@ -161,7 +180,10 @@ function AdminList() {
           )}
         </Async>
       </Card>
-      <Card title="Bootstrap and recovery">
+      <Card
+        title="Bootstrap and recovery"
+        description="How the first owner is created and how to get back in if every admin loses access."
+      >
         <ul class="text-sm text-muted space-y-1.5 list-disc pl-5">
           <li>
             The bootstrap token is printed once on first start and is void after the first admin
@@ -243,6 +265,7 @@ function InviteModal({
       open={open}
       onClose={onClose}
       title="Invite admin"
+      description="Gives someone access to this admin UI. Prefer a Nostr pubkey: they sign in with their own key and no shared password exists."
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
@@ -270,12 +293,16 @@ function InviteModal({
           </Button>
         </div>
         {mode === 'nostr' ? (
-          <Field label="Pubkey" error={pkErr}>
+          <Field
+            label="Pubkey"
+            error={pkErr}
+            hint="They sign in with a browser extension (NIP-07) or a remote signer (NIP-46)."
+          >
             <Input value={pubkey} onValue={setPubkey} placeholder="npub1… or hex" />
           </Field>
         ) : (
           <>
-            <Field label="Username">
+            <Field label="Username" hint="At least 2 characters.">
               <Input value={username} onValue={setUsername} autoComplete="off" />
             </Field>
             <Field label="Temporary password" hint="12+ characters; share it securely">
@@ -288,7 +315,10 @@ function InviteModal({
             </Field>
           </>
         )}
-        <Field label="Role">
+        <Field
+          label="Role"
+          help="Admin can manage apps, policies, TURN, media and payments. Owner can additionally invite and remove admins. Give owner to as few people as possible."
+        >
           <Select<AdminRole>
             value={role}
             onValue={setRole}
@@ -328,9 +358,23 @@ function Sessions() {
                   </span>
                 ),
               },
-              { key: 'label', label: 'Device', render: (s) => s.label },
-              { key: 'ip', label: 'IP', render: (s) => <Mono>{s.ip}</Mono> },
-              { key: 'seen', label: 'Last seen', render: (s) => formatAgo(s.lastSeenAt) },
+              {
+                key: 'label',
+                label: 'Device',
+                help: 'Browser and operating system reported when the session started.',
+                render: (s) => s.label,
+              },
+              {
+                key: 'ip',
+                label: 'IP',
+                help: 'Address the session was last used from. An unfamiliar location is a reason to revoke.',
+                render: (s) => <Mono>{s.ip}</Mono>,
+              },
+              {
+                key: 'seen',
+                label: 'Last seen',
+                render: (s) => formatAgo(s.lastSeenAt),
+              },
               {
                 key: 'created',
                 label: 'Started',

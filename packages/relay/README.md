@@ -117,7 +117,8 @@ open a database written by a newer relay.
 `alerts.cert_days` (14). They show in the admin overview (acknowledge until resolved), in the stats
 stream count and as `beamhop_alerts_active`. Email delivery is not implemented; alert from Prometheus.
 
-**Monitoring.** `/metrics` (optionally protected by `metrics.token` as a bearer token) exports
+**Monitoring.** `/metrics` (on by default, `metrics.enabled`; optionally protected by `metrics.token` as a
+bearer token) exports
 `beamhop_*` gauges and counters for HTTP, both engines, the data relay, per-app usage, Blossom,
 payments, disk, alerts and certificate expiry. `deploy/grafana/beamhop-relay.json` is a ready
 dashboard. Logs are JSON lines on stdout (`log.level`).

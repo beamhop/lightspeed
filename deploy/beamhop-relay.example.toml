@@ -73,4 +73,5 @@ session_ttl_hours = 168
 allowed_origins = []
 
 [metrics]
+enabled = true
 token = ""

@@ -51,6 +51,10 @@ export function Login() {
             Admin sign-in{isMock ? ' · mock mode (any credentials work)' : ''}
           </p>
         </div>
+        <p class="text-sm text-muted mb-4 text-center leading-relaxed">
+          This console manages the relay: apps, the Nostr relay, TURN, media, payments and other
+          admins. Choose how you sign in below; first time here, use <strong>Claim</strong>.
+        </p>
         <div class="rounded-lg bg-surface border border-line p-4">
           <Tabs<Method>
             value={method}
@@ -131,6 +135,10 @@ function BunkerForm({ busy, run, setInfo }: FormProps & { setInfo: (s: string | 
         })
       }}
     >
+      <p class="text-sm text-muted">
+        Sign in with a key held by a remote signer app (NIP-46), for example on your phone. Your
+        private key never touches this browser.
+      </p>
       <Field label="Bunker URI (NIP-46)" hint="From nsec.app, Amber or another remote signer">
         <Input
           value={uri}
@@ -165,6 +173,10 @@ function PasswordForm({ busy, run }: FormProps) {
         void run(() => api.auth.password(username.trim(), password, totp.trim()))
       }}
     >
+      <p class="text-sm text-muted">
+        For admins invited with a username. You need your password and the current code from the
+        authenticator app you enrolled (Google Authenticator, 1Password, Aegis…).
+      </p>
       <Field label="Username">
         <Input
           name="username"

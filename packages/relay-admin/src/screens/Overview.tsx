@@ -6,6 +6,7 @@ import { MascotMessage } from '../components/Mascot'
 import { Badge, Button, Card, Link, PageHeader, ProgressBar, Stat } from '../components/ui'
 import { api, stats } from '../ctx'
 import { formatAgo, formatBps, formatBytes, formatDuration, formatNumber, percent } from '../format'
+import { PAGE_HELP } from '../help'
 import { performWrite } from '../store'
 import type { Alert } from '../types'
 
@@ -26,32 +27,59 @@ export function Overview() {
     <>
       <PageHeader
         title="Overview"
-        subtitle={o?.version ? `Relay ${o.version}` : 'Live relay health'}
+        subtitle={o?.version ? `Relay ${o.version} · live relay health` : 'Live relay health'}
+        intro={PAGE_HELP.overview}
       />
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <Stat
           label="Events/s"
           value={nostr ? nostr.eventsPerSec.toFixed(1) : '—'}
           hint={nostr ? `${formatNumber(nostr.events)} stored` : undefined}
+          help="Nostr events accepted per second across the public relay and every app realm. The small number is the total stored in the database. A sudden spike with no matching user growth usually means spam or a misbehaving client."
         />
-        <Stat label="Subscriptions" value={formatNumber(nostr?.subscriptions)} tone="violet" />
-        <Stat label="Clients" value={formatNumber(nostr?.clients)} tone="violet" />
-        <Stat label="TURN allocations" value={formatNumber(turn?.allocations)} />
-        <Stat label="Relayed" value={formatBps(turn?.bps)} />
+        <Stat
+          label="Subscriptions"
+          value={formatNumber(nostr?.subscriptions)}
+          tone="violet"
+          help="Open REQ subscriptions: standing queries clients keep open to receive new events. Each client usually holds a few. Many per client can indicate a buggy app; see Nostr → Live subscriptions."
+        />
+        <Stat
+          label="Clients"
+          value={formatNumber(nostr?.clients)}
+          tone="violet"
+          help="WebSocket connections currently open to the Nostr relay (public and app realms). Roughly the number of people or devices online right now."
+        />
+        <Stat
+          label="TURN allocations"
+          value={formatNumber(turn?.allocations)}
+          help="Active TURN relay sessions. Each one is a peer whose connection could not go direct and is being relayed through this server. Details and controls are on the TURN page."
+        />
+        <Stat
+          label="Relayed"
+          value={formatBps(turn?.bps)}
+          help="Bandwidth currently flowing through TURN, in and out combined. This is usually your largest hosting cost; cap it per app on the app’s Quotas tab."
+        />
         <Stat
           label="Disk"
           value={disk ? `${diskPct.toFixed(0)}%` : '—'}
           tone={diskPct > 80 ? 'danger' : 'ok'}
+          help="Disk used on the volume holding the databases and media. Above 80% it turns red: add retention rules (Nostr → Retention), delete media or grow the disk before it fills, because a full disk stops the relay from accepting events."
           hint={
             disk ? `${formatBytes(disk.usedBytes)} of ${formatBytes(disk.totalBytes)}` : undefined
           }
         />
-        <Stat label="Uptime" value={formatDuration(uptime)} tone="ok" />
+        <Stat
+          label="Uptime"
+          value={formatDuration(uptime)}
+          tone="ok"
+          help="Time since the relay process last started. Resets after a restart, upgrade or crash; an unexpected reset is worth checking in the logs."
+        />
         <Stat
           label="Apps"
           value={formatNumber(o?.apps)}
           tone="violet"
           hint={o?.blobs ? `${formatBytes(o.blobs.bytes)} media` : undefined}
+          help="Number of apps registered on this relay, and the total size of media they have uploaded. Manage them on the Apps page."
         />
       </div>
       {disk && (
@@ -61,7 +89,10 @@ export function Overview() {
       )}
 
       <div class="grid lg:grid-cols-2 gap-4 mb-4">
-        <Card title="Nostr events per second">
+        <Card
+          title="Nostr events per second"
+          description="Rate of accepted events over the last few minutes. Hover the chart to read exact values."
+        >
           <Chart
             data={[series[0], series[1]]}
             series={[
@@ -74,7 +105,10 @@ export function Overview() {
             ]}
           />
         </Card>
-        <Card title="TURN bandwidth">
+        <Card
+          title="TURN bandwidth"
+          description="Megabits per second relayed by TURN over the last few minutes."
+        >
           <Chart
             data={[series[0], series[2]]}
             series={[
@@ -91,6 +125,7 @@ export function Overview() {
 
       <Card
         title="Alerts"
+        description="Problems the relay detected on its own, such as quota overruns, abusive clients or low disk. Jump to the source to fix it, then acknowledge to clear it for every admin."
         actions={
           <Button size="sm" variant="ghost" onClick={() => void res.reload()}>
             Refresh

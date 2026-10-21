@@ -71,7 +71,7 @@ export interface RelayConfig {
   }
   backups: {
     enabled: boolean
-    /** Local hour (0-23) for the nightly backup. */
+    /** UTC hour (0-23) for the nightly backup. */
     hour: number
     retentionDays: number
     /** Defaults to <dataDir>/backups. */
@@ -92,6 +92,8 @@ export interface RelayConfig {
     allowedOrigins: string[]
   }
   metrics: {
+    /** Serve /metrics; when false it returns 404. Editable from the admin UI. */
+    enabled: boolean
     /** Optional bearer token protecting /metrics. */
     token: string
   }
@@ -143,7 +145,7 @@ export const defaultConfig: RelayConfig = {
   log: { level: 'info' },
   alerts: { diskPercent: 80, errorRate: 0.05, certDays: 14 },
   admin: { distDir: '', sessionTtlHours: 24 * 7, allowedOrigins: [] },
-  metrics: { token: '' },
+  metrics: { enabled: true, token: '' },
 }
 
 type Obj = Record<string, unknown>

@@ -778,6 +778,7 @@ h1{color:#5EEAD4}a{color:#8B7BFF}</style></head><body><main><h1>${name}</h1>
   }
 
   private metricsResponse(req: Request): Response {
+    if (!this.config.metrics.enabled) throw new HttpError(404, 'not-found', 'metrics disabled')
     const token = this.config.metrics.token
     if (token && req.headers.get('authorization') !== `Bearer ${token}`) {
       throw new HttpError(401, 'unauthenticated', 'metrics token required')

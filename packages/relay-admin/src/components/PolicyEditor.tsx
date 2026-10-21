@@ -62,8 +62,12 @@ function ListEditor({
   parse,
   render,
   placeholder,
+  help,
+  hint,
 }: {
   label: string
+  help?: string
+  hint?: string
   items: string[]
   onChange: (v: string[]) => void
   parse: (s: string) => string
@@ -83,7 +87,7 @@ function ListEditor({
     }
   }
   return (
-    <Field label={label} error={err}>
+    <Field label={label} error={err} help={help} hint={hint}>
       <div class="flex gap-2">
         <Input
           value={draft}
@@ -129,17 +133,24 @@ function KindsInput({
   value,
   onChange,
   hint,
+  help,
 }: {
   label: string
   value: number[]
   onChange: (v: number[]) => void
   hint?: string
+  help?: string
 }) {
   const [text, setText] = useState(formatKinds(value))
   const [err, setErr] = useState<string | null>(null)
   useEffect(() => setText(formatKinds(value)), [value.join(',')])
   return (
-    <Field label={label} hint={hint ?? 'Comma separated, ranges like 30000-30010'} error={err}>
+    <Field
+      label={label}
+      hint={hint ?? 'Comma separated, ranges like 30000-30010'}
+      help={help}
+      error={err}
+    >
       <Input
         value={text}
         onValue={setText}
@@ -162,16 +173,18 @@ function NumberInput({
   value,
   onChange,
   hint,
+  help,
   min = 0,
 }: {
   label: string
   value: number
   onChange: (n: number) => void
   hint?: string
+  help?: string
   min?: number
 }) {
   return (
-    <Field label={label} hint={hint}>
+    <Field label={label} hint={hint} help={help}>
       <Input
         type="number"
         min={min}
@@ -257,11 +270,10 @@ function PolicyForm({
 
   if (section === 'retention') {
     return (
-      <Card title={`Retention · ${realmLabel(realm)}`}>
-        <p class="text-sm text-muted mb-3">
-          Events matching a rule are pruned by the nightly job. Kinds without a rule are kept
-          forever.
-        </p>
+      <Card
+        title={`Retention · ${realmLabel(realm)}`}
+        description="Each rule targets some event kinds and limits how long or how many of them are kept. The nightly job deletes events that break a rule; kinds without a rule are kept forever. Example: kinds 7 (reactions) with max age 30 days."
+      >
         <div class="space-y-3">
           {p.retention.map((r, i) => (
             <div
@@ -270,6 +282,7 @@ function PolicyForm({
             >
               <KindsInput
                 label="Kinds"
+                help="Which event kinds this rule applies to, e.g. 1 for notes, 7 for reactions, 20000-29999 for ephemeral kinds."
                 value={r.kinds}
                 onChange={(k) =>
                   set(
@@ -290,6 +303,7 @@ function PolicyForm({
                   )
                 }
                 hint="0 = no age limit"
+                help="Delete matching events older than this many days. Decimals work (0.5 = 12 hours)."
               />
               <NumberInput
                 label="Max per pubkey"
@@ -301,6 +315,7 @@ function PolicyForm({
                   )
                 }
                 hint="0 = unlimited"
+                help="Keep only the newest N matching events per author; older ones are deleted. Handy for capping chatty kinds without an age limit."
               />
               <Button
                 variant="danger"
@@ -329,10 +344,14 @@ function PolicyForm({
   }
 
   return (
-    <Card title={`Policy · ${realmLabel(realm)}`}>
+    <Card
+      title={`Policy · ${realmLabel(realm)}`}
+      description="Every incoming event is checked against these rules before it is stored; rejected events get an error message back. Deny lists win over allow lists. Leave a list empty to not restrict on it."
+    >
       <div class="grid md:grid-cols-2 gap-4">
         <ListEditor
           label="Allowed pubkeys (empty = everyone)"
+          help="If you add any pubkey here, only these authors can publish. Use it for a private or team relay. Press Enter or Add after each key."
           items={p.pubkeys.allow}
           onChange={(v) => set('pubkeys', { ...p.pubkeys, allow: v })}
           parse={parsePubkey}
@@ -341,6 +360,7 @@ function PolicyForm({
         />
         <ListEditor
           label="Denied pubkeys"
+          help="Authors whose events are always rejected, e.g. known spammers. Their already-stored events stay until you delete them in Events."
           items={p.pubkeys.deny}
           onChange={(v) => set('pubkeys', { ...p.pubkeys, deny: v })}
           parse={parsePubkey}
@@ -349,11 +369,13 @@ function PolicyForm({
         />
         <KindsInput
           label="Allowed kinds (empty = all)"
+          help="If set, only these event kinds are accepted. Useful for a single-purpose relay, e.g. only Beamhop signalling (20100, 20101)."
           value={p.kinds.allow}
           onChange={(v) => set('kinds', { ...p.kinds, allow: v })}
         />
         <KindsInput
           label="Denied kinds"
+          help="Event kinds that are always rejected, e.g. 4 (legacy DMs) or 1984 (reports) if you do not want to store them."
           value={p.kinds.deny}
           onChange={(v) => set('kinds', { ...p.kinds, deny: v })}
         />
@@ -362,23 +384,28 @@ function PolicyForm({
           value={p.authRequiredKinds}
           onChange={(v) => set('authRequiredKinds', v)}
           hint="e.g. 20100, 20101 for private realms"
+          help="Clients must prove who they are with NIP-42 AUTH before publishing or reading these kinds. Combine with Allowed pubkeys to keep a realm private."
         />
         <div class="grid grid-cols-2 gap-3">
           <NumberInput
             label="Max event size (bytes)"
             value={p.maxEventSize}
             onChange={(v) => set('maxEventSize', v)}
+            help="Events larger than this (in bytes of JSON) are rejected. Protects against huge payloads; 64 KB fits almost every normal event."
             min={256}
           />
           <NumberInput
             label="NIP-13 min PoW (bits)"
             value={p.minPow}
             onChange={(v) => set('minPow', Math.min(v, 40))}
+            help="Require NIP-13 proof of work: the event ID must start with this many zero bits. Each extra bit doubles the work a sender must do. 0 disables it; 16–20 slows spam without bothering humans."
+            hint="0 = off, max 40"
           />
         </div>
         <div class="grid grid-cols-2 gap-3">
           <NumberInput
             label="Per-IP events"
+            help="How many events one IP address may publish per window. Stops a single machine from flooding the relay."
             value={p.rateLimits.perIp.events}
             onChange={(v) =>
               set('rateLimits', { ...p.rateLimits, perIp: { ...p.rateLimits.perIp, events: v } })
@@ -387,6 +414,7 @@ function PolicyForm({
           />
           <NumberInput
             label="Per-IP window (s)"
+            help="Length of the rate-limit window in seconds. 30 events per 60 s allows bursts but caps the average at one event every 2 s."
             value={p.rateLimits.perIp.windowSec}
             onChange={(v) =>
               set('rateLimits', { ...p.rateLimits, perIp: { ...p.rateLimits.perIp, windowSec: v } })
@@ -397,6 +425,7 @@ function PolicyForm({
         <div class="grid grid-cols-2 gap-3">
           <NumberInput
             label="Per-pubkey events"
+            help="How many events one author (pubkey) may publish per window, regardless of IP. Catches spammers that rotate IP addresses."
             value={p.rateLimits.perPubkey.events}
             onChange={(v) =>
               set('rateLimits', {
@@ -408,6 +437,7 @@ function PolicyForm({
           />
           <NumberInput
             label="Per-pubkey window (s)"
+            help="Length of the per-pubkey rate-limit window in seconds."
             value={p.rateLimits.perPubkey.windowSec}
             onChange={(v) =>
               set('rateLimits', {

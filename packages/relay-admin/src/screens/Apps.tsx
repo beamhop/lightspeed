@@ -10,6 +10,7 @@ import {
   Card,
   DataTable,
   Field,
+  InfoTip,
   Input,
   Link,
   Modal,
@@ -21,6 +22,7 @@ import {
 } from '../components/ui'
 import { api } from '../ctx'
 import { formatAgo, formatBytes, formatDate, formatNumber, toCsv } from '../format'
+import { PAGE_HELP } from '../help'
 import { currentQuery, navigate } from '../router'
 import { performWrite, revealOnce, toast } from '../store'
 import type { App, AppQuotas, AppUsage } from '../types'
@@ -33,6 +35,7 @@ export function AppsList() {
       <PageHeader
         title="Apps"
         subtitle="Realms with their own TURN secret, API key, quotas and policy"
+        intro={PAGE_HELP.apps}
         actions={
           <Button variant="primary" onClick={() => setCreating(true)}>
             New app
@@ -53,20 +56,33 @@ export function AppsList() {
                     label: 'Name',
                     render: (a) => <span class="font-medium">{a.name}</span>,
                   },
-                  { key: 'id', label: 'ID', render: (a) => <Mono class="text-muted">{a.id}</Mono> },
+                  {
+                    key: 'id',
+                    label: 'ID',
+                    help: 'The App ID your client passes to the Beamhop library. It also appears in the realm URLs (/a/<id>).',
+                    render: (a) => <Mono class="text-muted">{a.id}</Mono>,
+                  },
                   {
                     key: 'status',
                     label: 'Status',
+                    help: 'Disabled apps keep their data but all their Nostr, TURN and data-relay traffic is refused.',
                     render: (a) => (
                       <Badge tone={a.enabled ? 'ok' : 'muted'}>
                         {a.enabled ? 'enabled' : 'disabled'}
                       </Badge>
                     ),
                   },
-                  { key: 'plan', label: 'Plan', render: (a) => a.plan ?? '—', hideOnMobile: true },
+                  {
+                    key: 'plan',
+                    label: 'Plan',
+                    help: 'The payment plan attached to this app, if any.',
+                    render: (a) => a.plan ?? '—',
+                    hideOnMobile: true,
+                  },
                   {
                     key: 'usage',
                     label: 'Traffic (month)',
+                    help: 'Relayed bytes (TURN and data relay) this calendar month.',
                     render: (a) => formatBytes(a.usage?.bytesMonth),
                   },
                   {
@@ -142,6 +158,7 @@ function CreateAppModal({
       open={open}
       onClose={onClose}
       title="New app"
+      description="Creates a private realm for one product. You get an App ID, a TURN secret and an API key; the secrets are shown only once, so have somewhere safe to paste them."
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
@@ -152,10 +169,10 @@ function CreateAppModal({
       }
     >
       <div class="space-y-3">
-        <Field label="Name">
+        <Field label="Name" hint="Shown to admins only. You can tell apps apart by it.">
           <Input value={name} onValue={setName} placeholder="My multiplayer game" autoFocus />
         </Field>
-        <Field label="Description">
+        <Field label="Description" hint="Optional note, e.g. the team or repository that owns it.">
           <Input value={description} onValue={setDescription} placeholder="optional" />
         </Field>
       </div>
@@ -181,10 +198,12 @@ export function AppDetail({ id }: { id: string }) {
           <PageHeader
             title={app.name}
             subtitle={<Mono>{app.id}</Mono>}
+            intro={PAGE_HELP.app}
             actions={
               <>
                 <Toggle
                   label={app.enabled ? 'Enabled' : 'Disabled'}
+                  help="Switch off to stop all of this app’s traffic at once (for example during abuse or non-payment) without losing keys, policy or history. Switch on to resume."
                   checked={app.enabled}
                   onChange={async (v) => {
                     const r = await performWrite({
@@ -231,10 +250,30 @@ export function AppDetail({ id }: { id: string }) {
             value={tab}
             onChange={(t) => navigate(`/apps/${app.id}?tab=${t}`, { replace: true })}
             tabs={[
-              { id: 'keys', label: 'Keys' },
-              { id: 'quotas', label: 'Quotas' },
-              { id: 'policy', label: 'Policy' },
-              { id: 'usage', label: 'Usage' },
+              {
+                id: 'keys',
+                label: 'Keys',
+                description:
+                  'The secrets and URLs an integration needs. Secrets are never shown again after creation; if one is lost or leaked, rotate it and update your backend.',
+              },
+              {
+                id: 'quotas',
+                label: 'Quotas',
+                description:
+                  'Limits for this app. When a count or size limit is reached, new TURN allocations or uploads are refused; the bandwidth cap slows traffic down instead. 0 means unlimited.',
+              },
+              {
+                id: 'policy',
+                label: 'Policy',
+                description:
+                  'Rules for events published to this app’s realm (wss://<host>/a/<id>). They are independent of the public relay policy on the Nostr page.',
+              },
+              {
+                id: 'usage',
+                label: 'Usage',
+                description:
+                  'What this app consumed over the last 30 days. Export the CSV to bill a customer or to size quotas.',
+              },
             ]}
           />
           <div class="pt-4">
@@ -282,11 +321,21 @@ function Keys({ app, onChange }: { app: App; onChange: (a: App) => void }) {
   const relay = typeof location !== 'undefined' ? location.host : 'relay'
   return (
     <div class="grid md:grid-cols-2 gap-4">
-      <Card title="Secrets">
+      <Card
+        title="Secrets"
+        description="Only the last characters are shown. Rotating issues a new value (shown once) and invalidates the old one."
+      >
         <dl class="space-y-3 text-sm">
           <div class="flex items-center justify-between gap-2">
             <div>
-              <dt class="text-xs text-muted">TURN secret</dt>
+              <dt class="text-xs text-muted inline-flex items-center gap-1">
+                TURN secret
+                <InfoTip label="TURN secret">
+                  Shared secret the relay uses to sign short-lived TURN credentials (TURN REST,
+                  HMAC-SHA1). Your backend never needs it directly if it calls the turn-credentials
+                  endpoint with the API key.
+                </InfoTip>
+              </dt>
               <dd>
                 <Mono>{app.turnSecretHint ?? '••••'}</Mono>
               </dd>
@@ -297,7 +346,13 @@ function Keys({ app, onChange }: { app: App; onChange: (a: App) => void }) {
           </div>
           <div class="flex items-center justify-between gap-2">
             <div>
-              <dt class="text-xs text-muted">API key</dt>
+              <dt class="text-xs text-muted inline-flex items-center gap-1">
+                API key
+                <InfoTip label="API key">
+                  Lets your backend request TURN credentials for its users (Authorization: Bearer
+                  &lt;key&gt;). Keep it on the server; never ship it inside a web or mobile app.
+                </InfoTip>
+              </dt>
               <dd>
                 <Mono>{app.apiKeyHint ?? '••••'}</Mono>
               </dd>
@@ -308,15 +363,30 @@ function Keys({ app, onChange }: { app: App; onChange: (a: App) => void }) {
           </div>
         </dl>
       </Card>
-      <Card title="Endpoints">
+      <Card title="Endpoints" description="Configure these URLs in your app and backend.">
         <dl class="space-y-2 text-sm">
           {[
-            ['Realm relay', `wss://${relay}/a/${app.id}`],
-            ['Data relay', `wss://${relay}/a/${app.id}/data`],
-            ['TURN credentials', `POST https://${relay}/a/${app.id}/turn-credentials`],
-          ].map(([k, v]) => (
+            [
+              'Realm relay',
+              `wss://${relay}/a/${app.id}`,
+              'Private Nostr relay for this app. Peers use it to find each other and exchange signalling.',
+            ],
+            [
+              'Data relay',
+              `wss://${relay}/a/${app.id}/data`,
+              'Fallback that forwards end-to-end-encrypted data between peers that cannot connect directly, and lets server-side peers join without WebRTC.',
+            ],
+            [
+              'TURN credentials',
+              `POST https://${relay}/a/${app.id}/turn-credentials`,
+              'Your backend calls this with the API key to get short-lived TURN username/password pairs for a user.',
+            ],
+          ].map(([k, v, h]) => (
             <div key={k}>
-              <dt class="text-xs text-muted">{k}</dt>
+              <dt class="text-xs text-muted inline-flex items-center gap-1">
+                {k}
+                <InfoTip label={k as string}>{h}</InfoTip>
+              </dt>
               <dd class="break-all">
                 <Mono>{v}</Mono>
               </dd>
@@ -332,12 +402,48 @@ function Keys({ app, onChange }: { app: App; onChange: (a: App) => void }) {
   )
 }
 
-const QUOTA_FIELDS: { key: keyof AppQuotas; label: string; unit: string; scale: number }[] = [
-  { key: 'maxAllocations', label: 'Max TURN allocations', unit: '', scale: 1 },
-  { key: 'maxMbps', label: 'Bandwidth cap', unit: 'Mbps', scale: 1 },
-  { key: 'gbPerMonth', label: 'Monthly transfer', unit: 'GB', scale: 1 },
-  { key: 'maxStorageBytes', label: 'Media storage', unit: 'GB', scale: 1024 ** 3 },
-  { key: 'maxBlobBytes', label: 'Max blob size', unit: 'MB', scale: 1024 ** 2 },
+const QUOTA_FIELDS: {
+  key: keyof AppQuotas
+  label: string
+  unit: string
+  scale: number
+  help: string
+}[] = [
+  {
+    key: 'maxAllocations',
+    label: 'Max TURN allocations',
+    unit: '',
+    scale: 1,
+    help: 'How many TURN relay sessions this app may hold at once. Roughly the number of simultaneous users who need relaying.',
+  },
+  {
+    key: 'maxMbps',
+    label: 'Bandwidth cap',
+    unit: 'Mbps',
+    scale: 1,
+    help: 'Maximum TURN throughput shared by all of this app’s allocations. Traffic above it is slowed down, not dropped.',
+  },
+  {
+    key: 'gbPerMonth',
+    label: 'Monthly transfer',
+    unit: 'GB',
+    scale: 1,
+    help: 'Total TURN traffic allowed per calendar month. Once used up, new allocations are refused until the next month and an alert appears on the Overview.',
+  },
+  {
+    key: 'maxStorageBytes',
+    label: 'Media storage',
+    unit: 'GB',
+    scale: 1024 ** 3,
+    help: 'Total size of Blossom media this app’s users may store. Uploads beyond it are rejected.',
+  },
+  {
+    key: 'maxBlobBytes',
+    label: 'Max blob size',
+    unit: 'MB',
+    scale: 1024 ** 2,
+    help: 'Largest single file a user may upload for this app.',
+  },
 ]
 
 export function Quotas({ app, onSaved }: { app: App; onSaved: (a: App) => void }) {
@@ -364,6 +470,7 @@ export function Quotas({ app, onSaved }: { app: App; onSaved: (a: App) => void }
             key={f.key}
             label={`${f.label}${f.unit ? ` (${f.unit})` : ''}`}
             hint="0 = unlimited"
+            help={f.help}
           >
             <Input
               type="number"
@@ -374,7 +481,11 @@ export function Quotas({ app, onSaved }: { app: App; onSaved: (a: App) => void }
             />
           </Field>
         ))}
-        <Field label="Allowed media types" hint="e.g. image/*, video/mp4 — empty = any">
+        <Field
+          label="Allowed media types"
+          hint="e.g. image/*, video/mp4 — empty = any"
+          help="MIME types users may upload for this app, separated by commas. Use type/* for a whole family. Restricting this prevents your media quota being used for unrelated files."
+        >
           <Input value={mime} onValue={setMime} />
         </Field>
       </div>
@@ -425,12 +536,26 @@ function Usage({ app }: { app: App }) {
       {(u) => (
         <>
           <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
-            <Stat label="Transfer (30d)" value={formatBytes(u.totals.bytes)} />
-            <Stat label="Events (30d)" value={formatNumber(u.totals.events)} tone="violet" />
-            <Stat label="Peak allocations" value={u.totals.peakAllocations} />
+            <Stat
+              label="Transfer (30d)"
+              value={formatBytes(u.totals.bytes)}
+              help="TURN plus data-relay bytes in both directions over the last 30 days."
+            />
+            <Stat
+              label="Events (30d)"
+              value={formatNumber(u.totals.events)}
+              tone="violet"
+              help="Nostr events published to this app’s realm over the last 30 days."
+            />
+            <Stat
+              label="Peak allocations"
+              value={u.totals.peakAllocations}
+              help="Highest number of simultaneous TURN allocations in the period. Use it to set Max TURN allocations with some headroom."
+            />
           </div>
           <Card
             title="Daily transfer"
+            description="Per-day relayed traffic (GB) and published events (thousands). Export CSV downloads the daily numbers."
             actions={
               <Button size="sm" onClick={() => exportCsv(u)}>
                 Export CSV
